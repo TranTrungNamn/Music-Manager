@@ -6,6 +6,14 @@ node_modules/
 !.env.example
 
 # --- Backend (NestJS) ---
+Backend/be-music/node_modules/
+Backend/be-music/dist/
+
+# --- Frontend (NextJS) ---
+Frontend/fe-music/node_modules/
+Frontend/fe-music/.next/
+
+# --- Backend (NestJS) ---
 backend/node_modules/
 backend/dist/
 backend/thumbs.db
