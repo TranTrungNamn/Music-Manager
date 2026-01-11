@@ -13,15 +13,27 @@ export class Track {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Index()
+  @Index() // Vẫn giữ Index cho Title vì thực tế app nghe nhạc nào cũng cần tìm tên
   @Column()
-  title: string; // Tên bài hát (VD: Shape of You)
+  title: string;
 
   @Column()
-  fileName: string; // Tên file thật (VD: 01. Shape of You.flac)
+  fileName: string;
+
+  // --- CÁC CỘT CHUYÊN DỤNG CHO BENCHMARK ---
+
+  @Index() // ⚡ Đánh Index -> Tìm cực nhanh
+  @Column({ nullable: true })
+  keyword: string; // VD: "key_500000"
+
+  @Column({ type: 'int', nullable: true })
+  // 🐢 KHÔNG đánh Index -> Tìm chậm (Quét toàn bảng)
+  benchmarkOrder: number; // VD: 500000
+
+  // -----------------------------------------
 
   @Column({ type: 'int', default: 1 })
-  trackNumber: number; // ✨ CỘT MỚI: Số thứ tự trong Album
+  trackNumber: number;
 
   @Column()
   relativePath: string;
@@ -39,7 +51,7 @@ export class Track {
   bitDepth: number;
 
   @Column({ type: 'varchar', length: 10, default: 'flac' })
-  extension: string; // ✨ Luôn là 'flac'
+  extension: string;
 
   @Column({ type: 'bigint', nullable: true })
   fileSize: number;

@@ -5,7 +5,7 @@ import { Artist } from '../../entities/artist.entity';
 import { Album } from '../../entities/album.entity';
 import { Track } from '../../entities/track.entity';
 import { performance } from 'perf_hooks';
-import { randomUUID } from 'crypto'; // Sử dụng thư viện có sẵn của Node.js
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class SeederService {
@@ -13,7 +13,6 @@ export class SeederService {
   private currentProgress = 0;
   private isSeeding = false;
 
-  // Bộ âm tiết để sinh tên (Vô hạn tổ hợp)
   private readonly syllables = [
     'mon',
     'fay',
@@ -70,7 +69,6 @@ export class SeederService {
     return { progress: this.currentProgress, isSeeding: this.isSeeding };
   }
 
-  // --- HÀM TẠO TÊN RANDOM ---
   private generateName(minWords = 1, maxWords = 2): string {
     const wordCount =
       Math.floor(Math.random() * (maxWords - minWords + 1)) + minWords;
@@ -86,133 +84,117 @@ export class SeederService {
     return words.join(' ');
   }
 
-  // --- LOGIC SEEDING TỐI ƯU (Batch Processing) ---
   async seed(limit: number) {
     if (this.isSeeding) return { message: 'Đang chạy...' };
     this.isSeeding = true;
     this.currentProgress = 0;
 
     const TARGET_TRACKS = limit > 0 ? limit : 1000000;
+    const MAX_ARTISTS = 50;
+    const MAX_ALBUMS = 50;
+    const TRACKS_PER_BATCH = 2000;
+
     this.logger.log(
-      `🚀 Bắt đầu tạo ${TARGET_TRACKS.toLocaleString()} tracks (Chế độ Turbo Bulk Insert)...`,
+      `🚀 Bắt đầu tạo ${TARGET_TRACKS.toLocaleString()} tracks (Realism Mode)...`,
     );
 
-    let createdTracks = 0;
-
-    // Cấu hình Batch: Mỗi lần xử lý 1 cụm lớn để giảm số lần gọi DB
-    // Ví dụ: Tạo 100 Artist -> 300 Album -> 3000 Track một lúc
-    const ARTISTS_PER_BATCH = 200;
-
     try {
+      // BƯỚC 1: TẠO ARTIST & ALBUM
+      const artists: Artist[] = [];
+      const albums: any[] = [];
+      const albumIds: string[] = [];
+
+      for (let i = 0; i < MAX_ARTISTS; i++) {
+        const artist = new Artist();
+        artist.id = randomUUID();
+        artist.name = this.generateName(2, 3);
+        artist.picturePath = `/artists/img_${i}.jpg`;
+        artists.push(artist);
+      }
+      await this.artistRepo.save(artists);
+
+      for (let i = 0; i < MAX_ALBUMS; i++) {
+        const albumId = randomUUID();
+        albums.push({
+          id: albumId,
+          title: this.generateName(1, 3), // ✨ Tên Album ngẫu nhiên (Ko có chữ Album)
+          artist: artists[Math.floor(Math.random() * artists.length)],
+          releaseYear: 2024,
+          coverPath: `/covers/img_${i}.jpg`,
+          bitDepth: 16,
+          sampleRate: 44100,
+        });
+        albumIds.push(albumId);
+      }
+      await this.albumRepo
+        .createQueryBuilder()
+        .insert()
+        .into(Album)
+        .values(albums)
+        .execute();
+      this.logger.log(`✅ Init metadata xong.`);
+
+      // BƯỚC 2: TẠO TRACKS
+      let createdTracks = 0;
+      const startTime = performance.now();
+
       while (createdTracks < TARGET_TRACKS) {
-        // 1. Chuẩn bị dữ liệu trong RAM (Memory)
-        const artists: any[] = [];
-        const albums: any[] = [];
         const tracks: any[] = [];
+        const remaining = TARGET_TRACKS - createdTracks;
+        const batchSize =
+          remaining < TRACKS_PER_BATCH ? remaining : TRACKS_PER_BATCH;
 
-        for (let i = 0; i < ARTISTS_PER_BATCH; i++) {
-          if (createdTracks >= TARGET_TRACKS) break;
+        for (let k = 0; k < batchSize; k++) {
+          createdTracks++;
+          const currentId = createdTracks;
 
-          // A. Tạo Artist (Tự sinh UUID luôn)
-          const artistId = randomUUID();
-          const artistName = this.generateName(2, 3); // Tên 2-3 từ
+          // ✨ DỮ LIỆU THẬT (Không prefix rác)
+          const songName = this.generateName(2, 4); // VD: "Blue Sky"
+          const randomSuffix = Math.floor(Math.random() * 9999);
+          const fileName = `${songName.replace(/\s/g, '_')}_${randomSuffix}.flac`;
 
-          artists.push({
-            id: artistId,
-            name: artistName,
-            // Thêm các trường khác nếu entity yêu cầu
+          tracks.push({
+            title: songName,
+            fileName: fileName,
+
+            // ✨ CỘT DÀNH RIÊNG CHO BENCHMARK
+            keyword: `key_${currentId}`, // Dùng để test Fast Query
+            benchmarkOrder: currentId, // Dùng để test Slow Query
+
+            trackNumber: Math.floor(Math.random() * 12) + 1,
+            extension: 'flac',
+            relativePath: `/Music/${fileName}`,
+            duration: 180 + Math.floor(Math.random() * 100),
+            bitrate: 1411,
+            sampleRate: 44100,
+            bitDepth: 16,
+            fileSize: 30000000,
+            album: {
+              id: albumIds[Math.floor(Math.random() * albumIds.length)],
+            },
           });
-
-          // B. Tạo Album cho Artist này (1-4 album)
-          const albumCount = Math.floor(Math.random() * 4) + 1;
-
-          for (let j = 0; j < albumCount; j++) {
-            if (createdTracks >= TARGET_TRACKS) break;
-
-            const albumId = randomUUID();
-            const albumTitle = `Album ${this.generateName(1, 2)}`;
-
-            albums.push({
-              id: albumId,
-              title: albumTitle,
-              artist: { id: artistId }, // Link với Artist trên bằng UUID
-              releaseYear: Math.floor(Math.random() * (2024 - 1990 + 1)) + 1990,
-              bitDepth: Math.random() > 0.5 ? 16 : 24,
-              sampleRate: Math.random() > 0.5 ? 44.1 : 48.0,
-              coverPath: `/covers/img_${Math.floor(Math.random() * 1000)}.jpg`,
-            });
-
-            // C. Tạo Tracks cho Album này (8-15 bài)
-            const trackCount = Math.floor(Math.random() * 8) + 8;
-
-            for (let k = 1; k <= trackCount; k++) {
-              const songName = this.generateName(2, 4);
-              const fileName = `${k.toString().padStart(2, '0')}. ${songName}.flac`;
-
-              tracks.push({
-                title: songName,
-                fileName: fileName,
-                trackNumber: k,
-                extension: 'flac',
-                relativePath: `/${artistName}/${albumTitle}/${fileName}`,
-                duration: 180 + Math.floor(Math.random() * 120),
-                bitrate: 1411,
-                sampleRate: 44100,
-                bitDepth: 16,
-                fileSize:
-                  20 * 1024 * 1024 + Math.floor(Math.random() * 10000000),
-                album: { id: albumId }, // Link với Album trên bằng UUID
-              });
-
-              createdTracks++;
-              if (createdTracks >= TARGET_TRACKS) break;
-            }
-          }
         }
 
-        // 2. BULK INSERT (Chỉ 3 lệnh Insert cho hàng nghìn dòng dữ liệu)
-        if (artists.length > 0) {
-          // Insert Artist (Bỏ qua lỗi nếu trùng ID - dù rất hiếm khi dùng UUID)
-          await this.artistRepo
-            .createQueryBuilder()
-            .insert()
-            .into(Artist)
-            .values(artists)
-            .orIgnore()
-            .execute();
+        await this.trackRepo
+          .createQueryBuilder()
+          .insert()
+          .into(Track)
+          .values(tracks)
+          .execute();
 
-          // Insert Album
-          await this.albumRepo
-            .createQueryBuilder()
-            .insert()
-            .into(Album)
-            .values(albums)
-            .orIgnore()
-            .execute();
-
-          // Insert Track
-          await this.trackRepo
-            .createQueryBuilder()
-            .insert()
-            .into(Track)
-            .values(tracks)
-            .execute();
-        }
-
-        // 3. Cập nhật tiến độ
         this.currentProgress = Math.min(
           Math.round((createdTracks / TARGET_TRACKS) * 100),
           100,
         );
-
-        if (createdTracks % 10000 === 0 || createdTracks >= TARGET_TRACKS) {
+        if (createdTracks % 50000 === 0) {
+          const elapsed = ((performance.now() - startTime) / 1000).toFixed(1);
           this.logger.log(
-            `⚡ Speed: ${this.currentProgress}% (${createdTracks.toLocaleString()}/${TARGET_TRACKS.toLocaleString()})`,
+            `⚡ Speed: ${this.currentProgress}% | Inserted: ${createdTracks.toLocaleString()} | Time: ${elapsed}s`,
           );
         }
       }
 
-      this.logger.log('✅ HOÀN TẤT! Dữ liệu đã được tạo thành công.');
+      this.logger.log('🎉 Seed thành công!');
     } catch (error: any) {
       this.logger.error('❌ Lỗi Seeding:', error);
       this.isSeeding = false;
@@ -223,46 +205,8 @@ export class SeederService {
     return { success: true };
   }
 
-  // --- Hàm Compare (Benchmark) ---
+  // (Giữ nguyên hàm compare cũ hoặc xóa đi nếu không dùng)
   async compare() {
-    this.logger.log('📊 Chạy benchmark...');
-
-    // Test tìm bài hát thứ 5 (Full Scan nếu không index)
-    const start1 = performance.now();
-    await this.trackRepo.find({ where: { trackNumber: 5 }, take: 50 });
-    const end1 = performance.now();
-    const plan1 = await this.trackRepo.query(
-      'EXPLAIN ANALYZE SELECT * FROM tracks WHERE "trackNumber" = 5 LIMIT 50',
-    );
-
-    // Test tìm tên bài hát (Index Scan)
-    // Lấy đại 1 tên để test
-    const randomTrack = await this.trackRepo.findOne({
-      where: {},
-      order: { createdAt: 'DESC' },
-    });
-    const titleToFind = randomTrack ? randomTrack.title : 'Unknown';
-
-    const start2 = performance.now();
-    await this.trackRepo.find({ where: { title: titleToFind }, take: 50 });
-    const end2 = performance.now();
-    const plan2 = await this.trackRepo.query(
-      `EXPLAIN ANALYZE SELECT * FROM tracks WHERE title = '${titleToFind}' LIMIT 50`,
-    );
-
-    return {
-      slow_query: {
-        name: 'Query (No Index)',
-        time: end1 - start1,
-        description: 'Tìm bài hát track #5',
-        plan: plan1,
-      },
-      fast_query: {
-        name: 'Query (Index)',
-        time: end2 - start2,
-        description: `Tìm bài hát tên "${titleToFind}"`,
-        plan: plan2,
-      },
-    };
+    return {};
   }
 }

@@ -1,8 +1,6 @@
 import { Controller, Get, Query, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Artist } from './entities/artist.entity';
-import { Album } from './entities/album.entity';
+import { Repository, Like } from 'typeorm';
 import { Track } from './entities/track.entity';
 import { performance } from 'perf_hooks';
 
@@ -10,77 +8,51 @@ import { performance } from 'perf_hooks';
 export class MusicController {
   private readonly logger = new Logger('MUSIC-API');
 
-  constructor(
-    @InjectRepository(Artist) private artistRepo: Repository<Artist>,
-    @InjectRepository(Album) private albumRepo: Repository<Album>,
-    @InjectRepository(Track) private trackRepo: Repository<Track>,
-  ) {}
+  constructor(@InjectRepository(Track) private trackRepo: Repository<Track>) {}
 
-  @Get('stats')
-  async getStats() {
-    const [artists, albums, tracks] = await Promise.all([
-      this.artistRepo.count(),
-      this.albumRepo.count(),
-      this.trackRepo.count(),
-    ]);
-    return { artists, albums, tracks };
-  }
-
-  // --- API TÌM KIẾM TÍCH HỢP BENCHMARK ---
   @Get('search-smart')
   async searchSmart(@Query('q') q: string) {
     const keyword = q ? q.trim() : '';
-    this.logger.log(`🔍 [SEARCH]: Đang tìm "${keyword}" và đo hiệu năng...`);
+    this.logger.log(`🔍 [SEARCH]: Test hiệu năng với keyword "${keyword}"`);
 
-    // 1. PHẦN ĐO HIỆU SUẤT (BENCHMARK)
-    // Để demo cho giáo viên thấy sự chênh lệch, ta sẽ chạy 2 query kiểm tra ngầm:
-    // Query A (Nhanh): Tìm chính xác theo Title (Có Index)
-    // Query B (Chậm): Tìm chính xác theo FileName (Không Index)
-
-    let fastTime = 0;
-    let slowTime = 0;
-
-    // Mẹo: Nếu keyword chứa số (ví dụ "500"), ta giả lập tìm bản ghi ID đó để so sánh công bằng nhất
+    // Lấy số ID để test (nếu user nhập số, hoặc mặc định 900.000)
     const matchId = keyword.match(/(\d+)/);
-    const testId = matchId ? matchId[0] : '900000'; // Mặc định test bài 900k nếu không nhập số
+    const testId = matchId ? parseInt(matchId[0]) : 900000;
 
-    // Đo query NHANH (Index Scan)
+    // 1. QUERY NHANH (Index Scan)
+    // Tìm chính xác bài có Title bắt đầu bằng "Track #900000"
+    // Vì cột 'title' có @Index(), DB sẽ nhảy cóc tới ngay bản ghi đó.
     const t1 = performance.now();
-    await this.trackRepo.findOne({ where: { title: `Track #${testId}` } });
-    fastTime = performance.now() - t1;
+    await this.trackRepo.findOne({
+      where: { title: Like(`Track #${testId}%`) }, // Cú pháp Like để tìm prefix
+    });
+    const fastTime = performance.now() - t1;
 
-    // Đo query CHẬM (Full Table Scan)
+    // 2. QUERY CHẬM (Full Table Scan)
+    // Tìm bài có benchmarkOrder = 900000
+    // Vì cột 'benchmarkOrder' KHÔNG có Index, DB phải lật từng trang sách (scan 1 triệu dòng) để tìm.
     const t2 = performance.now();
     await this.trackRepo.findOne({
-      where: { fileName: `file_${testId}.flac` },
+      where: { benchmarkOrder: testId },
     });
-    slowTime = performance.now() - t2;
+    const slowTime = performance.now() - t2;
 
-    // 2. PHẦN LẤY DỮ LIỆU HIỂN THỊ (REAL DATA)
-    // Tìm kiếm ILIKE để hiển thị kết quả cho người dùng xem
-    const query = this.trackRepo
-      .createQueryBuilder('track')
-      .leftJoinAndSelect('track.album', 'album')
-      .leftJoinAndSelect('album.artist', 'artist')
-      .limit(50)
-      .orderBy('track.createdAt', 'DESC');
-
-    if (keyword) {
-      query.where('track.title ILIKE :q OR artist.name ILIKE :q', {
-        q: `%${keyword}%`,
-      });
-    }
-    const results = await query.getMany();
+    // Lấy dữ liệu hiển thị (Top 20 bài mới nhất)
+    const results = await this.trackRepo.find({
+      take: 20,
+      order: { createdAt: 'DESC' },
+    });
 
     return {
       data: results,
       benchmark: {
-        fast: fastTime,
-        slow: slowTime,
-        diff: slowTime / (fastTime || 1), // Nhanh hơn bao nhiêu lần
-        details: {
-          fastQuery: `SELECT ... WHERE title = 'Track #${testId}' (Index Scan)`,
-          slowQuery: `SELECT ... WHERE fileName = 'file_${testId}.flac' (Seq Scan)`,
+        testId_used: testId,
+        fast_query_time: fastTime.toFixed(4) + ' ms',
+        slow_query_time: slowTime.toFixed(4) + ' ms',
+        diff_factor: (slowTime / (fastTime || 0.01)).toFixed(1) + 'x',
+        explanation: {
+          fast: `Tìm theo cột Title (Indexed): Like 'Track #${testId}%'`,
+          slow: `Tìm theo cột BenchmarkOrder (No Index): = ${testId}`,
         },
       },
     };

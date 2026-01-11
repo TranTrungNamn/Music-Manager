@@ -12,24 +12,31 @@ interface Track {
 }
 
 interface BenchmarkResult {
-  fast: number;
-  slow: number;
-  diff: number;
-  details: { fastQuery: string; slowQuery: string };
+  testId_used: number;
+  fast_query_time: string;
+  slow_query_time: string;
+  diff_factor: string;
+  explanation?: {
+    // ⚠️ Thêm dấu ? để tránh lỗi nếu backend chưa trả về field này
+    fast: string;
+    slow: string;
+  };
+}
+
+interface SearchResponse {
+  data: Track[];
+  benchmark?: BenchmarkResult;
 }
 
 export default function Dashboard() {
-  // State Data: Khởi tạo mặc định an toàn
   const [stats, setStats] = useState({ tracks: 0, albums: 0, artists: 0 });
   const [musicList, setMusicList] = useState<Track[]>([]);
   const [benchmark, setBenchmark] = useState<BenchmarkResult | null>(null);
 
-  // State UI
   const [query, setQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
-  // State Seed
   const [seedStep, setSeedStep] = useState(0);
   const [seedProgress, setSeedProgress] = useState(0);
   const [seedCountInput, setSeedCountInput] = useState(1000000);
@@ -48,31 +55,27 @@ export default function Dashboard() {
     }
   };
 
-  // --- FIX LỖI TẠI ĐÂY ---
   const handleSearch = async (keyword: string) => {
     setIsSearching(true);
     setBenchmark(null);
+
     try {
       const res = await fetch(`${API_BASE}/music/search-smart?q=${keyword}`);
 
-      // Nếu API lỗi (VD: 500, 404), không cố parse JSON mà thoát luôn
       if (!res.ok) {
-        console.warn("Backend API Error:", res.statusText);
         setMusicList([]);
         return;
       }
 
-      const response = await res.json();
+      const result: SearchResponse = await res.json();
+      setMusicList(Array.isArray(result.data) ? result.data : []);
 
-      // Defensive Coding: Chỉ set nếu data là mảng, nếu không thì dùng mảng rỗng
-      setMusicList(Array.isArray(response.data) ? response.data : []);
-
-      if (response.benchmark) {
-        setBenchmark(response.benchmark);
+      if (result.benchmark) {
+        setBenchmark(result.benchmark);
       }
     } catch (e) {
-      console.error("Lỗi gọi API Search:", e);
-      setMusicList([]); // Reset về rỗng để tránh crash
+      console.error("Lỗi API Search:", e);
+      setMusicList([]);
     } finally {
       setIsSearching(false);
     }
@@ -83,8 +86,7 @@ export default function Dashboard() {
       setSeedStep(1);
     } else if (seedStep === 1) {
       setSeedStep(2);
-
-      fetch(`${API_BASE}/benchmark/seed?count=${seedCountInput}`).catch(
+      fetch(`${API_BASE}/benchmark/seed?limit=${seedCountInput}`).catch(
         console.error
       );
 
@@ -103,7 +105,7 @@ export default function Dashboard() {
           }
         } catch {
           clearInterval(interval);
-          setSeedStep(0); // Reset nếu lỗi
+          setSeedStep(0);
         }
       }, 1000);
     }
@@ -115,7 +117,8 @@ export default function Dashboard() {
       <header className="bg-black/80 backdrop-blur-md border-b border-gray-800 sticky top-0 z-50 shadow-2xl">
         <div className="max-w-7xl mx-auto px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex flex-col">
-            <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-blue-500">
+            {/* ✨ SỬA CLASS CSS: bg-gradient -> bg-linear */}
+            <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-linear-to-r from-green-400 to-blue-500">
               Music DB Manager
             </h1>
             <div className="flex gap-4 text-xs text-gray-400 font-mono mt-1">
@@ -160,12 +163,11 @@ export default function Dashboard() {
       </header>
 
       <main className="max-w-6xl mx-auto px-6 py-8">
-        {/* THANH TÌM KIẾM */}
         <div className="flex flex-col gap-6 mb-10 mt-4">
           <div className="flex gap-4 shadow-lg shadow-green-900/10">
             <input
               type="text"
-              placeholder="Nhập tên bài hát (VD: Blue Sky) hoặc ID (VD: 500)..."
+              placeholder="Nhập tên bài hát (VD: Track #100) hoặc ID (VD: 500)..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearch(query)}
@@ -179,10 +181,10 @@ export default function Dashboard() {
             </button>
           </div>
 
-          {/* KẾT QUẢ BENCHMARK */}
           {benchmark && (
             <div className="animate-in fade-in slide-in-from-top-4 duration-500">
-              <div className="bg-gradient-to-r from-gray-900 to-gray-800 border border-gray-700 rounded-xl p-6 relative overflow-hidden shadow-2xl">
+              {/* ✨ SỬA CLASS CSS: bg-gradient -> bg-linear */}
+              <div className="bg-linear-to-r from-gray-900 to-gray-800 border border-gray-700 rounded-xl p-6 relative overflow-hidden shadow-2xl">
                 <div className="absolute top-0 left-0 w-1 h-full bg-green-500"></div>
 
                 <div className="flex justify-between items-start mb-4">
@@ -190,11 +192,12 @@ export default function Dashboard() {
                     📊 Performance Benchmark Result
                   </h3>
                   <span className="bg-blue-600/20 text-blue-400 border border-blue-500/30 px-3 py-1 rounded-full text-xs font-bold">
-                    🚀 Improved {Math.round(benchmark.diff)}x
+                    🚀 Gap: {benchmark.diff_factor}
                   </span>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {/* Cột Fast */}
                   <div>
                     <div className="flex justify-between text-sm mb-2">
                       <span className="text-green-400 font-bold flex items-center gap-2">
@@ -202,20 +205,19 @@ export default function Dashboard() {
                         INDEX SCAN
                       </span>
                       <span className="text-white font-mono text-lg">
-                        {benchmark.fast.toFixed(2)} ms
+                        {benchmark.fast_query_time}
                       </span>
                     </div>
                     <div className="w-full bg-gray-700 rounded-full h-2">
-                      <div
-                        className="bg-green-500 h-full rounded-full"
-                        style={{ width: "100%" }}
-                      ></div>
+                      <div className="bg-green-500 h-full rounded-full w-full"></div>
                     </div>
+                    {/* 🛠️ FIX LỖI CRASH: Thêm optional chaining ?. */}
                     <p className="text-[10px] text-gray-500 mt-2 font-mono bg-black/30 p-2 rounded truncate">
-                      {benchmark.details.fastQuery}
+                      {benchmark.explanation?.fast || "N/A"}
                     </p>
                   </div>
 
+                  {/* Cột Slow */}
                   <div>
                     <div className="flex justify-between text-sm mb-2">
                       <span className="text-red-400 font-bold flex items-center gap-2">
@@ -223,17 +225,15 @@ export default function Dashboard() {
                         FULL SCAN
                       </span>
                       <span className="text-white font-mono text-lg">
-                        {benchmark.slow.toFixed(2)} ms
+                        {benchmark.slow_query_time}
                       </span>
                     </div>
                     <div className="w-full bg-gray-700 rounded-full h-2">
-                      <div
-                        className="bg-red-500 h-full rounded-full"
-                        style={{ width: "100%" }}
-                      ></div>
+                      <div className="bg-red-500 h-full rounded-full w-full"></div>
                     </div>
+                    {/* 🛠️ FIX LỖI CRASH: Thêm optional chaining ?. */}
                     <p className="text-[10px] text-gray-500 mt-2 font-mono bg-black/30 p-2 rounded truncate">
-                      {benchmark.details.slowQuery}
+                      {benchmark.explanation?.slow || "N/A"}
                     </p>
                   </div>
                 </div>
@@ -242,9 +242,7 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* LIST NHẠC */}
         <div className="flex justify-between items-center mb-4 border-b border-gray-800 pb-2">
-          {/* Sửa thêm optional chaining (?) để tránh crash nếu musicList vô tình null */}
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             Tracks Found{" "}
             <span className="bg-gray-800 text-xs py-1 px-2 rounded-full text-gray-400">
@@ -273,36 +271,36 @@ export default function Dashboard() {
 
         {viewMode === "grid" ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {/* Thêm kiểm tra musicList có dữ liệu không */}
-            {musicList && musicList.length > 0 ? (
+            {musicList.length > 0 ? (
               musicList.map((track) => (
                 <div
                   key={track.id}
                   className="bg-[#181818] p-4 rounded-md hover:bg-[#282828] transition group cursor-pointer shadow-lg"
                 >
-                  <div className="aspect-square bg-gradient-to-br from-gray-800 to-gray-700 rounded mb-3 flex items-center justify-center text-3xl shadow-inner group-hover:scale-105 transition duration-300">
+                  {/* ✨ SỬA CLASS CSS: bg-gradient -> bg-linear */}
+                  <div className="aspect-square bg-linear-to-br from-gray-800 to-gray-700 rounded mb-3 flex items-center justify-center text-3xl shadow-inner group-hover:scale-105 transition duration-300">
                     🎵
                   </div>
                   <h3 className="font-bold text-sm truncate text-white mb-1">
                     {track.title}
                   </h3>
                   <p className="text-xs text-gray-400 truncate hover:underline">
-                    {track.album.artist.name}
+                    {track.album?.artist?.name || "Unknown Artist"}
                   </p>
                   <p className="text-[10px] text-gray-500 truncate mt-1">
-                    {track.album.title}
+                    {track.album?.title || "Unknown Album"}
                   </p>
                 </div>
               ))
             ) : (
               <div className="col-span-full text-center text-gray-500 py-10">
-                Không tìm thấy bài hát nào (hoặc Backend chưa chạy)
+                Không tìm thấy bài hát nào (Hãy thử chạy Seeding trước)
               </div>
             )}
           </div>
         ) : (
           <div className="flex flex-col gap-1">
-            {musicList && musicList.length > 0 ? (
+            {musicList.length > 0 ? (
               musicList.map((track, index) => (
                 <div
                   key={track.id}
@@ -319,15 +317,20 @@ export default function Dashboard() {
                       {track.title}
                     </div>
                     <div className="text-xs text-gray-400">
-                      {track.album.artist.name}
+                      {track.album?.artist?.name || "Unknown"}
                     </div>
                   </div>
                   <div className="hidden md:block text-xs text-gray-400 w-1/4 truncate">
-                    {track.album.title}
+                    {track.album?.title || "Unknown"}
                   </div>
                   <div className="text-xs text-gray-500 font-mono">
-                    {Math.floor(track.duration / 60)}:
-                    {(track.duration % 60).toString().padStart(2, "0")}
+                    {track.duration
+                      ? `${Math.floor(track.duration / 60)}:${(
+                          track.duration % 60
+                        )
+                          .toString()
+                          .padStart(2, "0")}`
+                      : "--:--"}
                   </div>
                 </div>
               ))
