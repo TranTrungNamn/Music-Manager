@@ -1,0 +1,29 @@
+# --- General ---
+node_modules/
+.DS_Store
+.env
+.env.*
+!.env.example
+
+# --- Backend (NestJS) ---
+backend/node_modules/
+backend/dist/
+backend/thumbs.db
+backend/*.log
+backend/.iodev
+backend/coverage/
+
+# --- Frontend (NextJS) ---
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.next/
+frontend/out/
+frontend/.cache/
+
+# --- IDE/Editors ---
+.vscode/
+.idea/
+*.swp
+*.swo
+Desktop.ini
