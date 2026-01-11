@@ -2,24 +2,27 @@ import { Controller, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 
-// Import Entities (Đảm bảo các file này tồn tại trong src/entities/)
+// 1. Import Entities
 import { Artist } from './entities/artist.entity';
 import { Album } from './entities/album.entity';
 import { Track } from './entities/track.entity';
 
-// Import Module chứa Seeder (Đảm bảo đường dẫn này chính xác)
-import { BenchmarkModule } from './modules/benchmark/benchmark.module';
+// 2. Import Controllers & Services
+import { AppController } from './modules/app.controller'; // <-- Đã thêm lại
+import { MusicController } from './music.controller';
+import { FileManagerService } from './common/file-manager.service'; // <-- QUAN TRỌNG: Import Service này
 
-import { MusicController } from './music.controller'; // Thêm dòng này
+// 3. Import Modules
+import { BenchmarkModule } from './modules/benchmark/benchmark.module';
 
 @Module({
   imports: [
-    // 1. Cấu hình biến môi trường
+    // Cấu hình Config
     ConfigModule.forRoot({
       isGlobal: true,
     }),
 
-    // 2. Kết nối Database Neon
+    // Kết nối Database
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -27,20 +30,26 @@ import { MusicController } from './music.controller'; // Thêm dòng này
         type: 'postgres',
         url: configService.get<string>('DATABASE_URL'),
         entities: [Artist, Album, Track],
-        synchronize: true, // Tự động tạo bảng trên Neon
+        synchronize: true,
         ssl: {
-          rejectUnauthorized: false, // Bắt buộc cho Neon Console
+          rejectUnauthorized: false,
         },
       }),
     }),
 
-    // 3. Đăng ký Entities
+    // Đăng ký Entities
     TypeOrmModule.forFeature([Artist, Album, Track]),
 
-    // 4. Module chứa logic Seeder của bạn
+    // Các module tính năng khác
     BenchmarkModule,
   ],
-  controllers: [MusicController], // Xóa AppController để tránh lỗi TS2307
-  providers: [], // Xóa AppService để tránh lỗi TS2307
+  // --- KHU VỰC SỬA LỖI ---
+  controllers: [
+    AppController, // <-- Đã thêm lại AppController
+    MusicController,
+  ],
+  providers: [
+    FileManagerService, // <-- QUAN TRỌNG: Phải khai báo Service ở đây thì AppController mới dùng được
+  ],
 })
 export class AppModule {}

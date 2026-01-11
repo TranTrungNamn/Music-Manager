@@ -1,54 +1,47 @@
-import { Controller, Get, Logger } from '@nestjs/common';
-import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { Controller, Get, Logger, Query } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { SeederService } from './seeder.service';
 
 @ApiTags('benchmark')
 @Controller('benchmark')
 export class BenchmarkController {
-  // Khởi tạo Logger để ghi lại các "nút bấm"
   private readonly logger = new Logger('BENCHMARK-CONTROLLER');
 
   constructor(private readonly seederService: SeederService) {}
 
   @Get('seed')
-  @ApiOperation({ summary: 'Bắt đầu quy trình đổ dữ liệu mẫu (Seeding)' })
-  async seed() {
+  @ApiOperation({ summary: 'Bắt đầu quy trình đổ dữ liệu mẫu' })
+  @ApiQuery({
+    name: 'count',
+    required: false,
+    description: 'Số lượng track muốn tạo (Mặc định 1 triệu)',
+  })
+  async seed(@Query('count') count?: number) {
+    // Chuyển đổi sang number (vì query params luôn là string)
+    const targetCount = count ? Number(count) : 1000000;
+
     console.log('\n');
-    this.logger.debug('🖱️ [HÀNH ĐỘNG]: Người dùng nhấn nút SEED');
+    this.logger.debug(
+      `🖱️ [ACTION]: Người dùng yêu cầu tạo ${targetCount.toLocaleString()} dòng dữ liệu`,
+    );
 
-    // Đảm bảo trong SeederService bạn có hàm tên là "seed"
-    const result = await this.seederService.seed();
+    // Truyền số lượng vào service
+    const result = await this.seederService.seed(targetCount);
 
-    this.logger.log('✅ [HOÀN TẤT]: Quy trình Seed đã xong');
+    this.logger.log('✅ [DONE]: Yêu cầu Seed đã được tiếp nhận và xử lý');
     console.log('\n');
     return result;
   }
 
   @Get('progress')
-  @ApiOperation({ summary: 'Kiểm tra tiến độ đổ dữ liệu' })
+  @ApiOperation({ summary: 'Kiểm tra tiến độ' })
   async getProgress() {
-    console.log('\n');
-    this.logger.debug('🖱️ [HÀNH ĐỘNG]: Người dùng nhấn nút CHECK PROGRESS');
-
-    // Giữ nguyên tính năng lấy tiến độ của bạn
-    const progress = await this.seederService.getProgress();
-
-    this.logger.verbose(`📊 Tiến độ hiện tại: ${progress}%`);
-    console.log('\n');
-    return progress;
+    return await this.seederService.getProgress();
   }
 
   @Get('compare')
-  @ApiOperation({ summary: 'So sánh hiệu năng giữa các phương thức' })
+  @ApiOperation({ summary: 'So sánh hiệu năng' })
   async compare() {
-    console.log('\n');
-    this.logger.debug('🖱️ [HÀNH ĐỘNG]: Người dùng nhấn nút COMPARE');
-
-    // Giữ nguyên tính năng so sánh của bạn
-    const report = await this.seederService.compare();
-
-    this.logger.log('📋 Đã xuất báo cáo so sánh hiệu năng');
-    console.log('\n');
-    return report;
+    return await this.seederService.compare();
   }
 }

@@ -15,35 +15,34 @@ export class Track {
 
   @Index()
   @Column()
-  title: string; // Tên bài hát từ Metadata
+  title: string; // Tên bài hát (VD: Shape of You)
 
   @Column()
-  fileName: string; // Tên file thực tế (vd: 01. do i wanna know.flac)
+  fileName: string; // Tên file thật (VD: 01. Shape of You.flac)
+
+  @Column({ type: 'int', default: 1 })
+  trackNumber: number; // ✨ CỘT MỚI: Số thứ tự trong Album
 
   @Column()
-  relativePath: string; // Đường dẫn tương đối dùng cho FileManagerService
+  relativePath: string;
 
   @Column({ type: 'int', nullable: true })
-  duration: number; // Thời lượng (giây)
-
-  // --- Thông số kỹ thuật chuyên sâu cho FLAC ---
+  duration: number;
 
   @Column({ type: 'int', nullable: true })
-  bitrate: number; // kbps
+  bitrate: number;
 
   @Column({ type: 'int', nullable: true })
-  sampleRate: number; // Hz (vd: 44100, 96000)
+  sampleRate: number;
 
   @Column({ type: 'int', nullable: true })
-  bitDepth: number; // Bit (vd: 16, 24)
+  bitDepth: number;
 
   @Column({ type: 'varchar', length: 10, default: 'flac' })
-  extension: string;
+  extension: string; // ✨ Luôn là 'flac'
 
   @Column({ type: 'bigint', nullable: true })
-  fileSize: number; // Kích thước file (bytes)
-
-  // --- Quan hệ ---
+  fileSize: number;
 
   @ManyToOne(() => Album, (album) => album.tracks, { onDelete: 'CASCADE' })
   album: Album;
