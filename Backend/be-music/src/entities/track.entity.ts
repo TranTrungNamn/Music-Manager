@@ -11,6 +11,7 @@ import {
 import { BaseEntity } from './base.entity';
 import { Album } from './album.entity';
 import { Genre } from './genre.entity';
+import { ColumnNumericTransformer } from '../common/transformers/column-numeric.transformer';
 
 /**
  * Thực thể Bài hát - Chứa thông tin chi tiết về file âm nhạc và dữ liệu benchmark.
@@ -44,7 +45,13 @@ export class Track extends BaseEntity {
   @Column({ type: 'int', nullable: true, comment: 'Tốc độ bit (kbps)' })
   bitrate: number;
 
-  @Column({ type: 'int', nullable: true, comment: 'Tần số lấy mẫu (Hz)' })
+  @Column({
+    type: 'int',
+    nullable: true,
+    comment: 'Tần số lấy mẫu (Hz)',
+    /** Áp dụng transformer để đảm bảo trả về kiểu number */
+    transformer: new ColumnNumericTransformer(),
+  })
   sampleRate: number;
 
   @Column({ type: 'smallint', nullable: true })
@@ -57,6 +64,8 @@ export class Track extends BaseEntity {
     type: 'bigint',
     nullable: true,
     comment: 'Kích thước file tính bằng byte',
+    /** Áp dụng transformer để đảm bảo trả về kiểu number */
+    transformer: new ColumnNumericTransformer(),
   })
   fileSize: number;
 

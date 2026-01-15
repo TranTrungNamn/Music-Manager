@@ -2,6 +2,7 @@ import { Entity, Column, ManyToOne, OneToMany } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { Artist } from './artist.entity';
 import { Track } from './track.entity';
+import { ColumnNumericTransformer } from '../common/transformers/column-numeric.transformer';
 
 /**
  * Thực thể Album âm nhạc
@@ -29,6 +30,7 @@ export class Album extends BaseEntity {
     precision: 5,
     scale: 2,
     comment: 'Tần số lấy mẫu (44.1, 48.0, 96.0...)',
+    transformer: new ColumnNumericTransformer(),
   })
   sampleRate: number;
 
