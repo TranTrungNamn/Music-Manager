@@ -1,36 +1,53 @@
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  ManyToOne,
-  OneToMany,
-} from 'typeorm';
+import { Entity, Column, ManyToOne, OneToMany } from 'typeorm';
+import { BaseEntity } from './base.entity';
 import { Artist } from './artist.entity';
 import { Track } from './track.entity';
 
+/**
+ * Thực thể Album âm nhạc
+ */
 @Entity('albums')
-export class Album {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+export class Album extends BaseEntity {
+  @Column({ length: 255 })
+  title: string;
 
-  @Column()
-  title: string; // AM
+  @Column({
+    type: 'smallint',
+    comment: 'Năm phát hành album',
+  })
+  releaseYear: number;
 
-  @Column()
-  releaseYear: number; // 2013
+  @Column({
+    type: 'smallint',
+    default: 16,
+    comment: 'Độ sâu bit (16-bit, 24-bit, 32-bit,...)',
+  })
+  bitDepth: number;
 
-  @Column()
-  bitDepth: number; // 24
+  @Column({
+    type: 'float',
+    precision: 5,
+    scale: 2,
+    comment: 'Tần số lấy mẫu (44.1, 48.0, 96.0...)',
+  })
+  sampleRate: number;
 
-  @Column({ type: 'float' })
-  sampleRate: number; // 44.1
+  @Column({
+    nullable: true,
+    length: 500,
+    comment: 'Đường dẫn tới ảnh bìa album',
+  })
+  coverPath: string;
 
-  @Column({ nullable: true })
-  coverPath: string; // Đường dẫn tới file cover.jpg
-
-  @ManyToOne(() => Artist, (artist) => artist.albums)
+  /**
+   * Quan hệ Artist 1-N. Nếu nghệ sĩ bị xóa, set artist_id trong album thành NULL.
+   */
+  @ManyToOne(() => Artist, (artist) => artist.albums, { onDelete: 'SET NULL' })
   artist: Artist;
 
+  /**
+   * Danh sách các bài hát nằm trong album này
+   */
   @OneToMany(() => Track, (track) => track.album)
   tracks: Track[];
 }

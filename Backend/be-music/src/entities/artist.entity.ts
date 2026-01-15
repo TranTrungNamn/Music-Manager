@@ -1,17 +1,19 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
+// artist.entity.ts
+import { Entity, Column, OneToMany } from 'typeorm';
+import { BaseEntity } from './base.entity';
 import { Album } from './album.entity';
 
+/**
+ * Thực thể Nghệ sĩ (Ca sĩ/Nhạc sĩ)
+ */
 @Entity('artists')
-export class Artist {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
-  @Column({ unique: true })
+export class Artist extends BaseEntity {
+  @Column({ unique: true, length: 255 })
   name: string;
-  // PHẢI có type: 'varchar' để Postgres không hiểu lầm là Object
-  @Column({ type: 'varchar', nullable: true }) // THÊM type: 'varchar' VÀO ĐÂY
-  picturePath: string | null;
 
+  /**
+   * Danh sách album thuộc về nghệ sĩ này
+   */
   @OneToMany(() => Album, (album) => album.artist)
   albums: Album[];
 }

@@ -12,7 +12,7 @@ export class MusicController {
 
   constructor(@InjectRepository(Track) private trackRepo: Repository<Track>) {}
 
-  // --- API STATS ---
+  // --- API 1: STATS ---
   @Get('stats')
   async getStats() {
     const tracks = await this.trackRepo.count();
@@ -21,36 +21,43 @@ export class MusicController {
     return { tracks, artists, albums };
   }
 
-  // --- API ALL LIBRARY ---
-  @Get('all')
-  async getAllMusic(
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 20,
-  ) {
-    const p = Number(page) || 1;
-    const l = Number(limit) || 20;
-    const skip = (p - 1) * l;
-
-    const [data, total] = await this.trackRepo.findAndCount({
-      take: l,
-      skip: skip,
-      order: { createdAt: 'DESC' },
-      relations: ['album', 'album.artist'],
+  // --- API 2: LẤY DANH SÁCH NGHỆ SĨ ---
+  @Get('artists')
+  async getArtists() {
+    // Lấy tất cả nghệ sĩ, sắp xếp tên A-Z
+    return this.trackRepo.manager.find(Artist, {
+      order: { name: 'ASC' },
+      // relations: ['albums'] // Nếu muốn hiển thị số album thì bật cái này (nhưng sẽ nặng)
     });
-
-    return {
-      data,
-      total,
-      page: p,
-      lastPage: Math.ceil(total / l),
-    };
   }
 
-  // --- API SEARCH SMART (CẬP NHẬT) ---
+  // --- API 3: LẤY DANH SÁCH ALBUM ---
+  @Get('albums')
+  async getAlbums(@Query('artistId') artistId: string) {
+    const whereCondition = artistId ? { artist: { id: artistId } } : {};
+
+    return this.trackRepo.manager.find(Album, {
+      where: whereCondition,
+      relations: ['artist'],
+      order: { releaseYear: 'DESC' },
+    });
+  }
+
+  // --- API 4: LẤY TRACKS (CỦA ALBUM HOẶC TẤT CẢ) ---
+  @Get('tracks-by-album')
+  async getTracksByAlbum(@Query('albumId') albumId: string) {
+    return this.trackRepo.find({
+      where: { album: { id: albumId } },
+      order: { trackNumber: 'ASC' }, // Sắp xếp theo thứ tự bài trong album
+      relations: ['album', 'album.artist'],
+    });
+  }
+
+  // --- API CŨ: SEARCH SMART (Giữ nguyên để Search hoạt động) ---
   @Get('search-smart')
   async searchSmart(
     @Query('q') q: string,
-    @Query('filter') filter: string = 'all', // 'all' | 'title' | 'artist' | 'album'
+    @Query('filter') filter: string = 'all',
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 20,
   ) {
@@ -59,71 +66,53 @@ export class MusicController {
     const l = Number(limit) || 20;
     const skip = (p - 1) * l;
 
-    // 1. Xây dựng điều kiện tìm kiếm dựa trên Filter
     let whereCondition: any[] = [];
     const term = Like(`%${keyword}%`);
 
-    if (filter === 'title') {
-      whereCondition = [{ title: term }];
-    } else if (filter === 'artist') {
+    if (filter === 'title') whereCondition = [{ title: term }];
+    else if (filter === 'artist')
       whereCondition = [{ album: { artist: { name: term } } }];
-    } else if (filter === 'album') {
-      whereCondition = [{ album: { title: term } }];
-    } else {
-      // Default 'all': Tìm trên cả 3 trường
+    else if (filter === 'album') whereCondition = [{ album: { title: term } }];
+    else
       whereCondition = [
         { title: term },
         { album: { title: term } },
         { album: { artist: { name: term } } },
       ];
-    }
 
-    // 2. Benchmark (Chỉ chạy khi ở trang 1 để không làm chậm các trang sau)
-    // ✅ SỬA LỖI Ở ĐÂY: Thêm kiểu ": any" để TypeScript không ép kiểu null
+    // Warmup & Benchmark (Optional - Giữ lại logic cũ)
     let benchmarkData: any = null;
-
     if (p === 1 && filter === 'all') {
-      // Warm-up & Test Logic (Giữ nguyên code cũ của bạn)
       const matchId = keyword.match(/(\d+)/);
       const testId = matchId ? parseInt(matchId[0]) : 900000;
-
       await this.trackRepo.findOne({ where: { id: 'dummy' } }).catch(() => {});
-
       const t1 = performance.now();
       await this.trackRepo.findOne({
         where: { title: Like(`Track #${testId}%`) },
       });
       const fastTime = performance.now() - t1;
-
       const t2 = performance.now();
       await this.trackRepo.findOne({ where: { benchmarkOrder: testId } });
       const slowTime = performance.now() - t2;
-
       benchmarkData = {
         testId_used: testId,
         fast_query_time: fastTime.toFixed(4) + ' ms',
         slow_query_time: slowTime.toFixed(4) + ' ms',
         diff_factor: (slowTime / (fastTime || 0.01)).toFixed(1) + 'x',
-        explanation: { fast: `Index Scan`, slow: `Full Scan` },
       };
     }
 
-    // 3. Query chính (Có phân trang)
     const [results, total] = await this.trackRepo.findAndCount({
       where: whereCondition,
       take: l,
       skip: skip,
-      relations: ['album', 'album.artist'], // Lấy đủ data để highlight
+      relations: ['album', 'album.artist'],
       order: { title: 'ASC' },
     });
 
     return {
       data: results,
-      meta: {
-        total,
-        page: p,
-        lastPage: Math.ceil(total / l),
-      },
+      meta: { total, page: p, lastPage: Math.ceil(total / l) },
       benchmark: benchmarkData,
     };
   }

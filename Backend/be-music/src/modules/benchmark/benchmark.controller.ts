@@ -17,31 +17,25 @@ export class BenchmarkController {
     description: 'Số lượng track muốn tạo (Mặc định 1 triệu)',
   })
   async seed(@Query('count') count?: number) {
-    // Chuyển đổi sang number (vì query params luôn là string)
     const targetCount = count ? Number(count) : 1000000;
+    this.logger.debug(`🖱️ User requested seed: ${targetCount}`);
 
-    console.log('\n');
-    this.logger.debug(
-      `🖱️ [ACTION]: Người dùng yêu cầu tạo ${targetCount.toLocaleString()} dòng dữ liệu`,
-    );
+    // Gọi hàm seed (không await để trả về response ngay cho frontend polling)
+    this.seederService.seed(targetCount);
 
-    // Truyền số lượng vào service
-    const result = await this.seederService.seed(targetCount);
-
-    this.logger.log('✅ [DONE]: Yêu cầu Seed đã được tiếp nhận và xử lý');
-    console.log('\n');
-    return result;
+    return { message: 'Seeding started', target: targetCount };
   }
 
   @Get('progress')
   @ApiOperation({ summary: 'Kiểm tra tiến độ' })
   async getProgress() {
-    return await this.seederService.getProgress();
+    // ✅ Giờ thì hàm này đã tồn tại bên Service
+    return this.seederService.getProgress();
   }
 
-  @Get('compare')
-  @ApiOperation({ summary: 'So sánh hiệu năng' })
-  async compare() {
-    return await this.seederService.compare();
-  }
+  // ❌ XÓA hoặc COMMENT hàm này đi vì SeederService không có hàm compare()
+  // @Get('compare')
+  // async compare() {
+  //   return await this.seederService.compare();
+  // }
 }
