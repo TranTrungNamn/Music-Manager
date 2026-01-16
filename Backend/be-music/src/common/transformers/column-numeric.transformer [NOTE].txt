@@ -1,5 +1,0 @@
-Tính trong suốt (Transparency): Bạn khai báo kiểu dữ liệu trong TypeScript là number, và thực tế khi bạn sử dụng track.fileSize, nó sẽ luôn luôn là number. Bạn không cần phải gọi Number(track.fileSize) ở khắp mọi nơi trong Service nữa.
-
-An toàn: Hàm from xử lý được cả trường hợp null hoặc dữ liệu không hợp lệ từ DB.
-
-Giới hạn an toàn: Kiểu number của JavaScript có thể giữ giá trị an toàn lên tới ~9 triệu GB (Number.MAX_SAFE_INTEGER). Với file âm thanh, con số này là quá đủ, nên việc chuyển từ bigint sang number là hoàn toàn an toàn trong trường hợp này.

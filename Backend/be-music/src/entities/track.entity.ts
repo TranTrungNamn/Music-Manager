@@ -18,23 +18,28 @@ import { ColumnNumericTransformer } from '../common/transformers/column-numeric.
  */
 @Entity('tracks')
 export class Track extends BaseEntity {
+  // Giúp tìm kiếm bài hát theo tên nhanh chóng.
+
+  // Tiêu đề của bài hát
   @Index()
   @Column({ length: 255 })
   title: string;
 
+  // Tên file gốc (Do I Wanna Know.flac)
   @Column({ length: 500, comment: 'Tên file gốc' })
   fileName: string;
 
+  // Đường dẫn lưu trữ (relative path)
+  // "C:\Users\ACER\qobuzdl\artist_qobuz_new_00\Arctic Monkeys\
+  // Arctic Monkeys - AM (2013) [24B-44.1kHz]\01. Do I Wanna Know.flac"
   @Column({ length: 500, comment: 'Đường dẫn tương đối trong storage' })
   relativePath: string;
 
+  // Số thứ tự của bài hát trong Album (track_album)
   @Column({ type: 'int', default: 1, comment: 'Số thứ tự bài hát trong album' })
   trackNumber: number;
 
-  /*
-   * Thông tin kỹ thuật của tệp âm thanh
-   */
-
+  // Thời lượng nhạc
   @Column({
     type: 'int',
     nullable: true,
@@ -42,9 +47,11 @@ export class Track extends BaseEntity {
   })
   duration: number;
 
+  // (kbps - kilobits per second)
   @Column({ type: 'int', nullable: true, comment: 'Tốc độ bit (kbps)' })
   bitrate: number;
 
+  // (Hz)
   @Column({
     type: 'int',
     nullable: true,
@@ -54,12 +61,15 @@ export class Track extends BaseEntity {
   })
   sampleRate: number;
 
+  // (16-bit, 24-bit, 32-bit)
   @Column({ type: 'smallint', nullable: true })
   bitDepth: number;
 
+  // type (flac, mp3, wav)
   @Column({ type: 'varchar', length: 10, default: 'flac' })
   extension: string;
 
+  // Kích thước tệp file (byte)
   @Column({
     type: 'bigint',
     nullable: true,

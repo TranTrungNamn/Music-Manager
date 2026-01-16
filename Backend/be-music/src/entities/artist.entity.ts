@@ -12,6 +12,14 @@ export class Artist extends BaseEntity {
   name: string;
 
   /**
+   * Đường dẫn đến ảnh đại diện
+   */
+  @Column({
+    length: 500,
+    nullable: true,
+    comment: 'Path đến ảnh đại diện nghệ sĩ',
+  })
+  /**
    * Danh sách album thuộc về nghệ sĩ này
    */
   @OneToMany(() => Album, (album) => album.artist)

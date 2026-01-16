@@ -34,6 +34,11 @@ export class Album extends BaseEntity {
   })
   sampleRate: number;
 
+  /**
+   * "C:\Users\ACER\qobuzdl\
+   * artist_qobuz_new_00\
+   * Arctic Monkeys\Arctic Monkeys - AM (2013) [24B-44.1kHz]\cover.jpg"
+   */
   @Column({
     nullable: true,
     length: 500,
@@ -41,8 +46,10 @@ export class Album extends BaseEntity {
   })
   coverPath: string;
 
+  // -- Relation --
   /**
-   * Quan hệ Artist 1-N. Nếu nghệ sĩ bị xóa, set artist_id trong album thành NULL.
+   * Quan hệ Artist 1-N.
+   * Nếu nghệ sĩ bị xóa, set artist_id trong album thành NULL.
    */
   @ManyToOne(() => Artist, (artist) => artist.albums, { onDelete: 'SET NULL' })
   artist: Artist;
