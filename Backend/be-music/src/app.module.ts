@@ -6,18 +6,18 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { Artist } from './entities/artist.entity';
 import { Album } from './entities/album.entity';
 import { Track } from './entities/track.entity';
+import { Genre } from './entities/genre.entity';
 
 // 2. Import Controllers & Services
-import { AppController } from './modules/app.controller'; // <-- Đã thêm lại
+import { AppController } from './modules/app.controller';
 import { MusicController } from './music.controller';
-import { FileManagerService } from './common/file-manager.service'; // <-- QUAN TRỌNG: Import Service này
+import { FileManagerService } from './common/file-manager.service';
 
 // 3. Import Modules
 import { BenchmarkModule } from './modules/benchmark/benchmark.module';
 
 @Module({
   imports: [
-    // Cấu hình Config
     ConfigModule.forRoot({
       isGlobal: true,
     }),
@@ -29,27 +29,18 @@ import { BenchmarkModule } from './modules/benchmark/benchmark.module';
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
         url: configService.get<string>('DATABASE_URL'),
-        entities: [Artist, Album, Track],
+        entities: [Artist, Album, Track, Genre],
         synchronize: true,
         ssl: {
           rejectUnauthorized: false,
         },
       }),
     }),
-
-    // Đăng ký Entities
-    TypeOrmModule.forFeature([Artist, Album, Track]),
-
-    // Các module tính năng khác
+    // Đăng ký Entities cho các repository
+    TypeOrmModule.forFeature([Artist, Album, Track, Genre]),
     BenchmarkModule,
   ],
-  // --- KHU VỰC SỬA LỖI ---
-  controllers: [
-    AppController, // <-- Đã thêm lại AppController
-    MusicController,
-  ],
-  providers: [
-    FileManagerService, // <-- QUAN TRỌNG: Phải khai báo Service ở đây thì AppController mới dùng được
-  ],
+  controllers: [AppController, MusicController],
+  providers: [FileManagerService],
 })
 export class AppModule {}

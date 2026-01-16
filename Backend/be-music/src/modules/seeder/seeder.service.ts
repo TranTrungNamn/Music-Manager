@@ -70,15 +70,24 @@ export class SeederService {
             });
           }
 
+          // Lọc trùng trong BATCH hiện tại
+          // Sử dụng Map để giữ lại duy nhất 1 bản ghi cho mỗi "name"
+          const uniqueArtistsMap = new Map<string, Partial<Artist>>();
+          artistsData.forEach((artist) => {
+            uniqueArtistsMap.set(artist.name!, artist);
+          });
+          const filteredArtistsData = Array.from(uniqueArtistsMap.values());
+
           const savedArtists = await manager
             .createQueryBuilder()
             .insert()
             .into(Artist)
-            .values(artistsData)
+            .values(filteredArtistsData)
+            .onConflict('("name") DO UPDATE SET "name" = EXCLUDED."name"') // Vẫn nên giữ cái này để tránh trùng với các bản ghi cũ trong DB
             .returning(['id', 'name'])
             .execute();
 
-          const albumsData: AlbumSeederData[] = [];
+          const albumsData: AlbumSeederData[] = []; // --------------------------------
           const artistMaps = savedArtists.generatedMaps;
 
           for (const artistRef of artistMaps) {

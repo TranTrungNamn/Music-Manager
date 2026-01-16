@@ -78,50 +78,52 @@ export class MusicController {
     );
   }
 
-  // --- API 5: SEARCH SMART (Tích hợp Keyset Pagination & Projection) ---
+  // --- API 5: SEARCH SMART ---
   @Get('search-smart')
   async searchSmart(
     @Query('q') q: string,
     @Query('filter') filter: string = 'all',
     @Query('limit') limit: number = 20,
-    @Query('lastId') lastId?: string, // Dùng cho Số 3: Keyset Pagination
+    @Query('lastId') lastId?: string,
   ) {
     const keyword = q ? q.trim() : '';
     const l = Number(limit) || 20;
 
     const queryBuilder = this.trackRepo
       .createQueryBuilder('track')
-      // .leftJoin('track.album', 'album')
-      // .leftJoin('album.artist', 'artist')
+      // ĐÃ FIX: Lấy trực tiếp từ 'track' vì đã phi chuẩn hóa, không cần alias bảng khác
       .select([
         'track.id',
         'track.title',
         'track.duration',
-        'album.albumTitle', // Lấy trực tiếp từ track
-        'artist.artistName', // Lấy trực tiếp từ track
+        'track.albumTitle', // Lấy từ track.entity.ts
+        'track.artistName', // Lấy từ track.entity.ts
       ]);
 
     // Xử lý logic tìm kiếm
     if (keyword) {
-      // Logic tìm kiếm trên cột mới
-      const kw = `%${keyword}`;
+      // ĐÃ FIX: Chuỗi keyword đúng định dạng cho ILIKE
+      const kw = `%${keyword}%`;
+
       if (filter === 'title') {
         queryBuilder.where('track.title ILIKE :kw', { kw });
       } else if (filter === 'artist') {
-        queryBuilder.where('artist.name ILIKE :kw', { kw });
+        // ĐÃ FIX: Dùng track.artistName thay vì artist.name
+        queryBuilder.where('track.artistName ILIKE :kw', { kw });
       } else if (filter === 'album') {
-        queryBuilder.where('album.title ILIKE :kw', { kw });
+        // ĐÃ FIX: Dùng track.albumTitle thay vì album.title
+        queryBuilder.where('track.albumTitle ILIKE :kw', { kw });
       } else {
+        // ĐÃ FIX: Đồng bộ tất cả về bảng track
         queryBuilder.where(
-          '(track.title ILIKE :kw OR album.title ILIKE :kw OR artist.name ILIKE :kw)',
+          '(track.title ILIKE :kw OR track.albumTitle ILIKE :kw OR track.artistName ILIKE :kw)',
           { kw },
         );
       }
     }
 
-    // Số 3: Keyset Pagination thay cho Skip
+    // Keyset Pagination
     if (lastId) {
-      // Fix lỗi: Ép kiểu Number để so sánh với ID trong DB
       queryBuilder.andWhere('track.id > :lastId', { lastId: Number(lastId) });
     }
 

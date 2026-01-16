@@ -20,9 +20,7 @@ export class Artist extends BaseEntity {
     comment: 'Path đến ảnh đại diện nghệ sĩ',
   })
   picturePath: string;
-  /**
-   * Danh sách album thuộc về nghệ sĩ này
-   */
+  // Danh sách album thuộc về nghệ sĩ này
   @OneToMany(() => Album, (album) => album.artist)
   albums: Album[];
 }

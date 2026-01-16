@@ -26,7 +26,8 @@ export class Album extends BaseEntity {
   bitDepth: number;
 
   @Column({
-    type: 'float',
+    // đổi float sang decimal
+    type: 'decimal',
     precision: 5,
     scale: 2,
     comment: 'Tần số lấy mẫu (44.1, 48.0, 96.0...)',
