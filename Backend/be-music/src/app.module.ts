@@ -1,4 +1,4 @@
-import { Controller, Module } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 
@@ -24,19 +24,22 @@ import { BenchmarkModule } from './modules/benchmark/benchmark.module';
 
     // Kết nối Database
     TypeOrmModule.forRootAsync({
-      imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
+      useFactory: (config: ConfigService) => ({
         type: 'postgres',
-        url: configService.get<string>('DATABASE_URL'),
+        // 'db' là tên service trong docker-compose.yml
+        host: config.get<string>('DB_HOST', 'db'),
+        port: config.get<number>('DB_PORT', 5432),
+        username: config.get<string>('DB_USERNAME', 'postgres'),
+        password: config.get<string>('DB_PASSWORD', 'your_password'),
+        database: config.get<string>('DB_DATABASE', 'be_music'),
+        // Liệt kê trực tiếp Class thay vì dùng chuỗi để tránh lỗi Syntax khi quét file .js.map
         entities: [Artist, Album, Track, Genre],
         synchronize: true,
-        ssl: {
-          rejectUnauthorized: false,
-        },
+        logging: false, // Tắt logging để tăng hiệu suất khi xử lý 1 triệu dòng
       }),
     }),
-    // Đăng ký Entities cho các repository
+
     TypeOrmModule.forFeature([Artist, Album, Track, Genre]),
     BenchmarkModule,
   ],

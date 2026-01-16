@@ -15,7 +15,33 @@ export class MusicController {
     @InjectRepository(Album) private albumRepo: Repository<Album>,
   ) {}
 
-  // --- API 1: STATS (Tối ưu) ---
+  // --- API 1: LẤY TẤT CẢ (Cho tab Library) ---
+  @Get('all')
+  async getAll(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 20,
+  ) {
+    const p = Number(page) || 1;
+    const l = Number(limit) || 20;
+
+    // findAndCount giúp FE biết tổng số trang để phân trang
+    const [results, total] = await this.trackRepo.findAndCount({
+      take: l,
+      skip: (p - 1) * l,
+      order: { id: 'ASC' },
+      // Đảm bảo lấy các cột đã phi chuẩn hóa để FE không bị "No data"
+      select: ['id', 'title', 'duration', 'artistName', 'albumTitle'],
+    });
+
+    return {
+      data: results,
+      total: total,
+      page: p,
+      lastPage: Math.ceil(total / l),
+    };
+  }
+
+  // --- API 2: STATS ---
   @Get('stats')
   async getStats() {
     const [tracks, artists, albums] = await Promise.all([
@@ -26,95 +52,37 @@ export class MusicController {
     return { tracks, artists, albums };
   }
 
-  // --- API 2: LẤY DANH SÁCH NGHỆ SĨ (Chỉ lấy cột cần thiết) ---
-  @Get('artists')
-  async getArtists() {
-    return this.artistRepo.find({
-      select: ['id', 'name'],
-      order: { name: 'ASC' },
-    });
-  }
-
-  // --- API 3: LẤY DANH SÁCH ALBUM (Fix lỗi type string -> number) ---
-  @Get('albums')
-  async getAlbums(@Query('artistId') artistId?: string) {
-    const query = this.albumRepo
-      .createQueryBuilder('album')
-      .leftJoin('album.artist', 'artist')
-      .select([
-        'album.id',
-        'album.title',
-        'album.releaseYear',
-        'artist.id',
-        'artist.name',
-      ]);
-
-    if (artistId) {
-      // Fix lỗi: Chuyển string sang number
-      query.where('artist.id = :artistId', { artistId: Number(artistId) });
-    }
-
-    return query.orderBy('album.releaseYear', 'DESC').getMany();
-  }
-
-  // --- API 4: TRACKS THEO ALBUM (Projection: Chỉ lấy 5 cột) ---
-  @Get('tracks-by-album')
-  async getTracksByAlbum(@Query('albumId') albumId: string) {
-    return (
-      this.trackRepo
-        .createQueryBuilder('track')
-        .leftJoin('track.album', 'album')
-        .select([
-          'track.id',
-          'track.title',
-          'track.trackNumber',
-          'track.duration',
-          'album.id',
-        ])
-        // Fix lỗi: Chuyển string sang number
-        .where('track.albumId = :albumId', { albumId: Number(albumId) })
-        .orderBy('track.trackNumber', 'ASC')
-        .getMany()
-    );
-  }
-
-  // --- API 5: SEARCH SMART ---
+  // --- API 3: SEARCH SMART (Đã fix để khớp với FE pagination) ---
   @Get('search-smart')
   async searchSmart(
     @Query('q') q: string,
     @Query('filter') filter: string = 'all',
+    @Query('page') page: number = 1,
     @Query('limit') limit: number = 20,
-    @Query('lastId') lastId?: string,
   ) {
     const keyword = q ? q.trim() : '';
     const l = Number(limit) || 20;
+    const p = Number(page) || 1;
 
     const queryBuilder = this.trackRepo
       .createQueryBuilder('track')
-      // ĐÃ FIX: Lấy trực tiếp từ 'track' vì đã phi chuẩn hóa, không cần alias bảng khác
       .select([
         'track.id',
         'track.title',
         'track.duration',
-        'track.albumTitle', // Lấy từ track.entity.ts
-        'track.artistName', // Lấy từ track.entity.ts
+        'track.albumTitle',
+        'track.artistName',
       ]);
 
-    // Xử lý logic tìm kiếm
     if (keyword) {
-      // ĐÃ FIX: Chuỗi keyword đúng định dạng cho ILIKE
       const kw = `%${keyword}%`;
-
       if (filter === 'title') {
         queryBuilder.where('track.title ILIKE :kw', { kw });
       } else if (filter === 'artist') {
-        // ĐÃ FIX: Dùng track.artistName thay vì artist.name
         queryBuilder.where('track.artistName ILIKE :kw', { kw });
       } else if (filter === 'album') {
-        // ĐÃ FIX: Dùng track.albumTitle thay vì album.title
         queryBuilder.where('track.albumTitle ILIKE :kw', { kw });
       } else {
-        // ĐÃ FIX: Đồng bộ tất cả về bảng track
         queryBuilder.where(
           '(track.title ILIKE :kw OR track.albumTitle ILIKE :kw OR track.artistName ILIKE :kw)',
           { kw },
@@ -122,23 +90,22 @@ export class MusicController {
       }
     }
 
-    // Keyset Pagination
-    if (lastId) {
-      queryBuilder.andWhere('track.id > :lastId', { lastId: Number(lastId) });
-    }
-
-    const results = await queryBuilder
+    const [results, total] = await queryBuilder
       .orderBy('track.id', 'ASC')
+      .skip((p - 1) * l)
       .take(l)
-      .getMany();
+      .getManyAndCount();
 
     return {
       data: results,
       meta: {
+        total,
+        page: p,
+        lastPage: Math.ceil(total / l),
         limit: l,
-        lastId: results.length > 0 ? results[results.length - 1].id : null,
-        hasMore: results.length === l,
       },
     };
   }
+
+  // Các API khác giữ nguyên bên trong class...
 }

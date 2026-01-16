@@ -31,7 +31,7 @@ export class Track extends BaseEntity {
   title: string;
 
   // Tên file gốc (Do I Wanna Know.flac)
-  @Column({ length: 500, comment: 'Tên file gốc' })
+  @Column({ length: 255, comment: 'Tên file gốc' })
   fileName: string;
 
   // Đường dẫn lưu trữ (relative path)
@@ -44,6 +44,7 @@ export class Track extends BaseEntity {
   @Column({ type: 'int', default: 1, comment: 'Số thứ tự bài hát trong album' })
   trackNumber: number;
 
+  // -- Thông tin kỹ thuật âm thanh
   // Thời lượng nhạc
   @Column({
     type: 'int',

@@ -148,6 +148,7 @@ export class SeederService {
                 albumTitle: meta.title,
                 relativePath: `${meta.artistName}\\${meta.folderName}\\${fileName}`,
                 trackNumber: t,
+
                 duration: faker.number.int({ min: 180, max: 450 }),
                 bitrate: meta.bitDepth === 24 ? 2116 : 1411,
                 sampleRate: Math.round(meta.sampleRate * 1000),
