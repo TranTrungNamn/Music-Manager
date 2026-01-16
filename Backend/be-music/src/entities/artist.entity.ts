@@ -19,6 +19,7 @@ export class Artist extends BaseEntity {
     nullable: true,
     comment: 'Path đến ảnh đại diện nghệ sĩ',
   })
+  picturePath: string;
   /**
    * Danh sách album thuộc về nghệ sĩ này
    */

@@ -17,11 +17,16 @@ import { ColumnNumericTransformer } from '../common/transformers/column-numeric.
  * Thực thể Bài hát - Chứa thông tin chi tiết về file âm nhạc và dữ liệu benchmark.
  */
 @Entity('tracks')
+/**
+ * Composite Index - Chỉ mục hỗn hợp
+ * Khi bạn truy vấn danh sách bài hát của một Album và sắp xếp theo số thứ tự (trackNumber),
+ * Database hiện tại phải quét toàn bộ bảng. Việc thêm Index hỗn hợp giúp nó tìm thẳng đến vị trí dữ liệu cần thiết.
+ */
+@Index(['album', 'trackNumber'])
 export class Track extends BaseEntity {
   // Giúp tìm kiếm bài hát theo tên nhanh chóng.
 
   // Tiêu đề của bài hát
-  @Index()
   @Column({ length: 255 })
   title: string;
 
@@ -95,6 +100,23 @@ export class Track extends BaseEntity {
     comment: 'Thứ tự ưu tiên trong benchmark',
   })
   benchmarkOrder: number;
+
+  // -- Denormalization - Phi chuẩn hóa dữ liệu
+  @Index()
+  @Column({
+    length: 255,
+    nullable: true,
+    comment: 'Tên nghệ sĩ (phi chuẩn hóa)',
+  })
+  artistName: string;
+
+  @Index()
+  @Column({
+    length: 255,
+    nullable: true,
+    comment: 'Tiêu đề album (phi chuẩn hóa)',
+  })
+  albumTitle: string;
 
   // --- Relations ---
 

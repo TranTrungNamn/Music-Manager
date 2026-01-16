@@ -1,4 +1,0 @@
-DTO được tạo ra 
-(Data Transfer Object): 
-Xác định kiểu dữ liệu đầu vào cho các query params 
-(page, limit, q, filter) để dễ dàng validate.

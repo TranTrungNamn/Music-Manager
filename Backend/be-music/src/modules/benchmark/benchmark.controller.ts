@@ -1,6 +1,6 @@
 import { Controller, Get, Logger, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
-import { SeederService } from './seeder.service';
+import { SeederService } from '../seeder/seeder.service';
 
 @ApiTags('benchmark')
 @Controller('benchmark')
@@ -32,10 +32,4 @@ export class BenchmarkController {
     // ✅ Giờ thì hàm này đã tồn tại bên Service
     return this.seederService.getProgress();
   }
-
-  // ❌ XÓA hoặc COMMENT hàm này đi vì SeederService không có hàm compare()
-  // @Get('compare')
-  // async compare() {
-  //   return await this.seederService.compare();
-  // }
 }
