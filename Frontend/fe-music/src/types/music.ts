@@ -1,40 +1,28 @@
-// 1. Cập nhật Interface Track
+// src/types/music.ts
+
 export interface Track {
-  id: string; // ⚠️ QUAN TRỌNG: Sửa number -> string (để khớp UUID backend)
+  id: string;
   title: string;
-  trackNumber: number; // Nên thêm để hiển thị số thứ tự bài
-  duration?: number;
-  fileName?: string; // Thêm nếu muốn hiển thị tên file
-  // benchmarkOrder?: number; // <-- Không bắt buộc, chỉ thêm nếu muốn debug
+  duration: number;
+
+  // ✅ CẬP NHẬT: Backend trả về các trường phẳng (denormalized)
+  artistName: string;
+  albumTitle: string;
+
+  // Giữ lại optional nếu cần tương thích ngược, nhưng code chính sẽ dùng 2 trường trên
+  trackNumber?: number;
+  fileName?: string;
 }
 
-// 2. Thêm Interface cho kết quả tìm kiếm (API Search Smart)
-export interface SearchResult {
-  data: Track[]; // Danh sách bài hát tìm được
-  benchmark?: {
-    // Thông số đo hiệu năng (Optional)
-    testId_used: number;
-    fast_query_time: string;
-    slow_query_time: string;
-    diff_factor: string;
-    explanation: {
-      fast: string;
-      slow: string;
-    };
+// ✅ THÊM: Interface cho Benchmark để sửa lỗi import
+export interface BenchmarkResult {
+  is_active?: boolean;
+  testId_used: number;
+  fast_query_time: string;
+  slow_query_time: string;
+  diff_factor: string;
+  explanation?: {
+    fast: string;
+    slow: string;
   };
-}
-
-// 3. Cập nhật Artist/Album cho đồng bộ (nếu chưa làm)
-export interface Artist {
-  id: string;
-  name: string;
-  picturePath?: string;
-}
-
-export interface Album {
-  id: string;
-  title: string;
-  coverPath?: string;
-  artist: Artist;
-  tracks?: Track[];
 }
