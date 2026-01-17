@@ -56,7 +56,7 @@ export class SeederService {
     let totalTracksCreated = 0;
 
     try {
-      this.logger.log(`🚀 Bắt đầu seeding ${limit} bài hát...`);
+      this.logger.log(`Bắt đầu seeding ${limit} bài hát...`);
 
       while (totalTracksCreated < limit) {
         await this.dataSource.transaction(async (manager) => {
@@ -201,4 +201,26 @@ export class SeederService {
       );
     }
   }
+
+// RESTFUL API để lấy báo cáo hiệu suất truy vấn
+async getDatabaseStats() {
+  try {
+    // Sử dụng Promise.all để đếm song song số lượng bản ghi trong các bảng
+    const [trackCount, artistCount, albumCount] = await Promise.all([
+      this.trackRepo.count(),
+      this.artistRepo.count(),
+      this.albumRepo.count(),
+    ]);
+
+    return {
+      totalTracks: trackCount,
+      totalArtists: artistCount,
+      totalAlbums: albumCount,
+      updatedAt: new Date().toISOString(),
+    };
+  } catch (error) {
+    this.logger.error('Lỗi khi lấy thống kê database: ' + error.message);
+    throw error;
+  }
+}
 }

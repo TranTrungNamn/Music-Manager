@@ -32,4 +32,25 @@ export class BenchmarkController {
     // ✅ Giờ thì hàm này đã tồn tại bên Service
     return this.seederService.getProgress();
   }
+
+  // RESTful API để lấy báo cáo hiệu suất truy vấn
+
+  @Get('report')
+  @ApiOperation({ summary: 'Lấy báo cáo hiệu suất truy vấn' })
+  async getPerformanceReport() {
+    const startTime = Date.now();
+
+    // Thực hiện các truy vấn mẫu để đo hiệu suất
+    const stats = await this.seederService.getDatabaseStats();
+
+    const endTime = Date.now();
+    const duration = endTime - startTime;
+
+    return {
+      timestamp: new Date().toISOString(),
+      executionTimeMs: duration,
+      dataSummary: stats,
+      status: 'Success',
+    };
+  }
 }

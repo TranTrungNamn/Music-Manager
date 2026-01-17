@@ -24,11 +24,12 @@ import { ColumnNumericTransformer } from '../common/transformers/column-numeric.
  */
 @Index(['album', 'trackNumber'])
 export class Track extends BaseEntity {
-  // Giúp tìm kiếm bài hát theo tên nhanh chóng.
-
+  @Column()
+  // Khai báo GIN index cho cột title
   // Tiêu đề của bài hát
-  @Column({ length: 255 })
+  @Index({ fulltext: true })
   title: string;
+  // Giúp tìm kiếm bài hát theo tên nhanh chóng.
 
   // Tên file gốc (Do I Wanna Know.flac)
   @Column({ length: 255, comment: 'Tên file gốc' })
