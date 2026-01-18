@@ -10,7 +10,7 @@ import { Genre } from './entities/genre.entity';
 
 // 2. Import Controllers & Services
 import { AppController } from './modules/app.controller';
-import { MusicController } from './music.controller';
+import { MusicController } from './modules/music/music.controller';
 import { FileManagerService } from './common/file-manager.service';
 
 // 3. Import Modules

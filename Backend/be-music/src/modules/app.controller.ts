@@ -10,14 +10,14 @@ export class AppController {
   constructor(private readonly fileManagerService: FileManagerService) {
     console.log('\n');
     this.logger.debug(
-      '🚀 [SYSTEM]: AppController đã khởi tạo với FileManagerService',
+      '[SYSTEM]: AppController đã khởi tạo với FileManagerService',
     );
   }
 
   @Get()
   getHello(): string {
     console.log('\n');
-    this.logger.log('🏠 [CHECK]: Có yêu cầu truy cập vào trang chủ Backend');
+    this.logger.log('[CHECK]: Có yêu cầu truy cập vào trang chủ Backend');
 
     // Bạn có thể thử gọi một hàm trong fileManagerService để test log
     // example: this.fileManagerService.someFunction();

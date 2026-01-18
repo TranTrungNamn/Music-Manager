@@ -68,7 +68,7 @@ export default function Dashboard() {
 
   const fetchStats = async () => {
     try {
-      const res = await fetch(`${API_BASE}/music/stats`);
+      const res = await fetch(`${API_BASE}/stats`);
       if (res.ok) {
         setIsConnected(true);
         setShowToast(true);
@@ -91,7 +91,7 @@ export default function Dashboard() {
     if (pageNum === 1) setBenchmark(null);
 
     try {
-      const url = `${API_BASE}/music/search-smart?q=${keyword}&filter=${filterType}&page=${pageNum}&limit=${limit}&benchmark=${isDemoMode}`;
+      const url = `${API_BASE}/benchmark/search?q=${keyword}&filter=${filterType}&page=${pageNum}&limit=${limit}&benchmark=${isDemoMode}`;
       const res = await fetch(url);
       const result = await res.json();
 
@@ -135,7 +135,7 @@ export default function Dashboard() {
     setIsLoadingLibrary(true);
     try {
       const res = await fetch(
-        `${API_BASE}/music/all?page=${pageNum}&limit=${limit}`,
+        `${API_BASE}/tracks?page=${pageNum}&limit=${limit}`,
       );
       const data = await res.json();
       setLibraryList(data.data);
