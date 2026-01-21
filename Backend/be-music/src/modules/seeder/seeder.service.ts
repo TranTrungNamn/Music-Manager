@@ -1,5 +1,4 @@
 // modules/seeder/seeder.service.ts
-// TypeScript Type Inference (Suy luận kiểu dữ liệu)
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
@@ -8,7 +7,7 @@ import { Artist } from '../../entities/artist.entity';
 import { Album } from '../../entities/album.entity';
 import { faker } from '@faker-js/faker';
 
-// Định nghĩa Interface để tránh lỗi "never"
+// Define Interface to avoid "never" type error
 interface AlbumSeederData {
   title: string;
   releaseYear: number;
@@ -16,8 +15,8 @@ interface AlbumSeederData {
   sampleRate: number;
   coverPath: string;
   artist: { id: any };
-  folderName: string; // Dùng tạm để tạo path cho track
-  artistName: string; // Dùng tạm để tạo path cho track
+  folderName: string; // Temporary for track path generation
+  artistName: string; // Temporary for track path generation
 }
 
 @Injectable()
@@ -60,7 +59,7 @@ export class SeederService {
 
       while (totalTracksCreated < limit) {
         await this.dataSource.transaction(async (manager) => {
-          // FIX: Khai báo kiểu dữ liệu rõ ràng thay vì để mặc định []
+          // Explicitly define type instead of default []
           const artistsData: Partial<Artist>[] = [];
 
           for (let i = 0; i < ARTISTS_PER_CHUNK; i++) {
@@ -71,7 +70,6 @@ export class SeederService {
           }
 
           // Lọc trùng trong BATCH hiện tại
-          // Sử dụng Map để giữ lại duy nhất 1 bản ghi cho mỗi "name"
           const uniqueArtistsMap = new Map<string, Partial<Artist>>();
           artistsData.forEach((artist) => {
             uniqueArtistsMap.set(artist.name!, artist);
@@ -83,11 +81,12 @@ export class SeederService {
             .insert()
             .into(Artist)
             .values(filteredArtistsData)
-            .onConflict('("name") DO UPDATE SET "name" = EXCLUDED."name"') // Vẫn nên giữ cái này để tránh trùng với các bản ghi cũ trong DB
+            // [SỬA 1] Update 'updatedAt' để ép Postgres trả về ID ngay cả khi bản ghi đã tồn tại
+            .onConflict('("name") DO UPDATE SET "updatedAt" = NOW()')
             .returning(['id', 'name'])
             .execute();
 
-          const albumsData: AlbumSeederData[] = []; // --------------------------------
+          const albumsData: AlbumSeederData[] = [];
           const artistMaps = savedArtists.generatedMaps;
 
           for (const artistRef of artistMaps) {
@@ -112,7 +111,7 @@ export class SeederService {
             }
           }
 
-          // FIX: Tách meta data ra trước khi insert vào DB
+          // Separate metadata before inserting into DB
           const albumsToInsert = albumsData.map(
             ({ folderName, artistName, ...rest }) => rest,
           );
@@ -146,9 +145,9 @@ export class SeederService {
                 fileName: fileName,
                 artistName: meta.artistName,
                 albumTitle: meta.title,
-                relativePath: `${meta.artistName}\\${meta.folderName}\\${fileName}`,
+                // [SỬA 2] Dùng dấu / thay vì \\ để tương thích tốt hơn
+                relativePath: `${meta.artistName}/${meta.folderName}/${fileName}`,
                 trackNumber: t,
-
                 duration: faker.number.int({ min: 180, max: 450 }),
                 bitrate: meta.bitDepth === 24 ? 2116 : 1411,
                 sampleRate: Math.round(meta.sampleRate * 1000),
@@ -157,7 +156,7 @@ export class SeederService {
                 fileSize: faker.number.int({ min: 20000000, max: 50000000 }),
                 album: { id: albumId } as any,
                 benchmarkOrder: totalTracksCreated,
-                keyword: `key_${totalTracksCreated}`,
+                // [SỬA 3] Đã XÓA dòng 'keyword' ở đây để tránh lỗi DB
               });
 
               totalTracksCreated++;
@@ -179,11 +178,13 @@ export class SeederService {
         await new Promise((resolve) => setImmediate(resolve));
       }
     } catch (e) {
-      this.logger.error('Lỗi khi seeding: ' + e.message);
+      // TRANSLATED: "Lỗi khi seeding" -> "Error during seeding"
+      this.logger.error('Error during seeding: ' + e.message);
       console.error(e);
     } finally {
       this.seedingState.isSeeding = false;
-      this.logger.log(`✅ Hoàn tất! Đã tạo ${totalTracksCreated} bài hát.`);
+      // TRANSLATED: "Hoàn tất! Đã tạo..." -> "Completed! Created..."
+      this.logger.log(`✅ Completed! Created ${totalTracksCreated} tracks.`);
     }
     return { count: totalTracksCreated };
   }
@@ -196,31 +197,30 @@ export class SeederService {
     );
 
     if (current % 5000 === 0 || current >= total) {
+      // TRANSLATED: "Tiến độ" -> "Progress"
       this.logger.log(
-        `⏳ Tiến độ: ${this.seedingState.progress}% (${current}/${total})`,
+        `⏳ Progress: ${this.seedingState.progress}% (${current}/${total})`,
       );
     }
   }
 
-// RESTFUL API để lấy báo cáo hiệu suất truy vấn
-async getDatabaseStats() {
-  try {
-    // Sử dụng Promise.all để đếm song song số lượng bản ghi trong các bảng
-    const [trackCount, artistCount, albumCount] = await Promise.all([
-      this.trackRepo.count(),
-      this.artistRepo.count(),
-      this.albumRepo.count(),
-    ]);
+  async getDatabaseStats() {
+    try {
+      const [trackCount, artistCount, albumCount] = await Promise.all([
+        this.trackRepo.count(),
+        this.artistRepo.count(),
+        this.albumRepo.count(),
+      ]);
 
-    return {
-      totalTracks: trackCount,
-      totalArtists: artistCount,
-      totalAlbums: albumCount,
-      updatedAt: new Date().toISOString(),
-    };
-  } catch (error) {
-    this.logger.error('Lỗi khi lấy thống kê database: ' + error.message);
-    throw error;
+      return {
+        totalTracks: trackCount,
+        totalArtists: artistCount,
+        totalAlbums: albumCount,
+        updatedAt: new Date().toISOString(),
+      };
+    } catch (error) {
+      this.logger.error('Lỗi khi lấy thống kê database: ' + error.message);
+      throw error;
+    }
   }
-}
 }

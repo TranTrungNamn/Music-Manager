@@ -15,6 +15,7 @@ import { FileManagerService } from './common/file-manager.service';
 
 // 3. Import Modules
 import { BenchmarkModule } from './modules/benchmark/benchmark.module';
+import { SeederModule } from './modules/seeder/seeder.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { BenchmarkModule } from './modules/benchmark/benchmark.module';
 
     TypeOrmModule.forFeature([Artist, Album, Track, Genre]),
     BenchmarkModule,
+    SeederModule,
   ],
   controllers: [AppController, MusicController],
   providers: [FileManagerService],

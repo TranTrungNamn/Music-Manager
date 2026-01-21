@@ -4,28 +4,24 @@ import { Repository } from 'typeorm';
 import { ApiTags, ApiOperation, ApiQuery, ApiResponse } from '@nestjs/swagger';
 
 import { Track } from '../../entities/track.entity';
-// ✅ Import DTO vừa tạo
 import { BenchmarkResponseDto } from './benchmark.dto';
 
-@ApiTags('Benchmark & Performance Testing') // Tên nhóm rõ ràng hơn
+@ApiTags('Benchmark & Performance Testing')
 @Controller('benchmark')
 export class BenchmarkController {
   constructor(@InjectRepository(Track) private trackRepo: Repository<Track>) {}
 
   @Get('search')
-  // ✅ Mô tả chức năng chi tiết
   @ApiOperation({
-    summary: 'So sánh hiệu năng tìm kiếm (Smart Search)',
+    summary: 'So sánh hiệu năng tìm kiếm (Luôn bật báo cáo)',
     description:
-      'API này thực hiện tìm kiếm bài hát đồng thời bằng 2 phương pháp: \n\n 1. **Fast Query**: Sử dụng Index & QueryBuilder (Tối ưu). \n 2. **Slow Query**: Giả lập Full Table Scan (Chưa tối ưu) để so sánh tốc độ.',
+      'API này thực hiện tìm kiếm bài hát và **LUÔN LUÔN** so sánh hiệu năng giữa: \n\n 1. **Fast Query**: Sử dụng Index & QueryBuilder (Tối ưu). \n 2. **Slow Query**: Giả lập Full Table Scan (Chưa tối ưu) để lấy số liệu so sánh.',
   })
-  // ✅ Định nghĩa cấu trúc trả về chuẩn Pro
   @ApiResponse({
     status: 200,
     description: 'Kết quả tìm kiếm kèm báo cáo hiệu năng',
     type: BenchmarkResponseDto,
   })
-  // ✅ Thêm ví dụ (example) để người dùng không phải đoán
   @ApiQuery({
     name: 'q',
     required: true,
@@ -39,13 +35,7 @@ export class BenchmarkController {
     description: 'Trường dữ liệu cần tìm',
     example: 'all',
   })
-  @ApiQuery({
-    name: 'benchmark',
-    required: false,
-    enum: ['true', 'false'],
-    description: 'Bật chế độ chạy câu lệnh chậm để so sánh',
-    example: 'true',
-  })
+  // [ĐÃ XÓA] ApiQuery benchmark
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 20 })
   async searchSmart(
@@ -53,24 +43,24 @@ export class BenchmarkController {
     @Query('filter') filter: string = 'all',
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 20,
-    @Query('benchmark') benchmark: string = 'false',
+    // [ĐÃ XÓA] tham số benchmark
   ): Promise<BenchmarkResponseDto> {
-    // ✅ Return Type rõ ràng
     const keyword = q ? q.trim() : '';
     const l = Number(limit) || 20;
     const p = Number(page) || 1;
 
-    // 1. FAST QUERY
+    // ======================================================
+    // 1. FAST QUERY (Luôn chạy để lấy dữ liệu hiển thị)
+    // ======================================================
     const startFast = performance.now();
-    const queryBuilder = this.trackRepo
-      .createQueryBuilder('track')
-      .select([
-        'track.id',
-        'track.title',
-        'track.duration',
-        'track.albumTitle',
-        'track.artistName',
-      ]);
+    const queryBuilder = this.trackRepo.createQueryBuilder('track').select([
+      'track.id',
+      'track.title',
+      'track.duration',
+      'track.albumTitle',
+      'track.artistName',
+      // 'track.createdAt', // Bỏ comment nếu cần
+    ]);
 
     if (keyword) {
       const kw = `%${keyword}%`;
@@ -88,7 +78,7 @@ export class BenchmarkController {
     }
 
     const [results, total] = await queryBuilder
-      .orderBy('track.id', 'ASC')
+      .orderBy('track.id', 'ASC') // Hoặc sort theo tiêu chí khác
       .skip((p - 1) * l)
       .take(l)
       .getManyAndCount();
@@ -96,12 +86,17 @@ export class BenchmarkController {
     const endFast = performance.now();
     const fastTime = endFast - startFast;
 
-    // 2. SLOW QUERY
+    // ======================================================
+    // 2. SLOW QUERY (LUÔN CHẠY khi có từ khóa)
+    // ======================================================
     let slowTime = 0;
-    let slowExplanation = 'Skipped (Enable Demo Mode to test)';
+    let slowExplanation = 'N/A (No keyword provided)';
 
-    if (benchmark === 'true' && keyword) {
+    // Chỉ cần có keyword là chạy đo lường, không cần check flag true/false
+    if (keyword) {
       const startSlow = performance.now();
+
+      // Câu lệnh này cố tình viết để không dùng Index (Full Scan)
       await this.trackRepo.query(
         `SELECT COUNT(*) FROM tracks 
          WHERE lower(title) LIKE $1 
@@ -109,6 +104,7 @@ export class BenchmarkController {
          OR lower("albumTitle") LIKE $1`,
         [`%${keyword.toLowerCase()}%`],
       );
+
       const endSlow = performance.now();
       slowTime = endSlow - startSlow;
       slowExplanation = 'Full Table Scan (Raw SQL, No Index Usage)';
@@ -123,9 +119,10 @@ export class BenchmarkController {
         limit: l,
       },
       benchmark: {
-        is_active: benchmark === 'true',
+        is_active: true, // Luôn luôn là true
         fast_query_time: `${fastTime.toFixed(2)} ms`,
         slow_query_time: slowTime > 0 ? `${slowTime.toFixed(2)} ms` : 'N/A',
+        // Tính hệ số chênh lệch
         diff_factor: slowTime > 0 ? (slowTime / fastTime).toFixed(1) : '0',
         explanation: {
           fast: 'ORM Query Builder (Optimized)',

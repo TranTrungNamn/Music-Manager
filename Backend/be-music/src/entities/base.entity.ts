@@ -17,8 +17,8 @@ export abstract class BaseEntity {
    * [Tuy nhiên] UUID chiếm 16 bytes. Còn INT thì có 4 bytes
    * Vì do là dung lượng có giới hạn nên quyết định sử dụng INT
    * */
-  // id: string; //<-- UUID
-  id: number;
+  id: string; //<-- UUID [Do đã thay đổi thành localhost]
+  // id: number;
 
   @CreateDateColumn({
     comment: 'Thời điểm bản ghi được tạo',

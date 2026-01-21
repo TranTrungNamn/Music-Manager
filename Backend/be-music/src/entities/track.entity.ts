@@ -1,144 +1,103 @@
-// track.entity.ts
-
 import {
   Entity,
   Column,
   ManyToOne,
-  ManyToMany,
-  JoinTable,
+  ManyToMany, // <--- Nhớ import cái này
+  JoinTable,  // <--- Nhớ import cái này
+  JoinColumn,
   Index,
 } from 'typeorm';
-import { BaseEntity } from './base.entity';
+import { ApiProperty } from '@nestjs/swagger';
 import { Album } from './album.entity';
-import { Genre } from './genre.entity';
+import { BaseEntity } from './base.entity';
+import { Genre } from './genre.entity'; // <--- Nhớ import cái này
 import { ColumnNumericTransformer } from '../common/transformers/column-numeric.transformer';
 
-/**
- * Thực thể Bài hát - Chứa thông tin chi tiết về file âm nhạc và dữ liệu benchmark.
- */
 @Entity('tracks')
-/**
- * Composite Index - Chỉ mục hỗn hợp
- * Khi bạn truy vấn danh sách bài hát của một Album và sắp xếp theo số thứ tự (trackNumber),
- * Database hiện tại phải quét toàn bộ bảng. Việc thêm Index hỗn hợp giúp nó tìm thẳng đến vị trí dữ liệu cần thiết.
- */
-@Index(['album', 'trackNumber'])
+@Index(['title', 'artistName', 'albumTitle']) 
 export class Track extends BaseEntity {
+  // [LƯU Ý] Đã xóa khai báo id để thừa kế từ BaseEntity
+
+  @ApiProperty({ example: 'Numb', description: 'Tên bài hát' })
   @Column()
-  // Khai báo GIN index cho cột title
-  // Tiêu đề của bài hát
-  @Index({ fulltext: true })
   title: string;
-  // Giúp tìm kiếm bài hát theo tên nhanh chóng.
 
-  // Tên file gốc (Do I Wanna Know.flac)
-  @Column({ length: 255, comment: 'Tên file gốc' })
-  fileName: string;
-
-  // Đường dẫn lưu trữ (relative path)
-  // "C:\Users\ACER\qobuzdl\artist_qobuz_new_00\Arctic Monkeys\
-  // Arctic Monkeys - AM (2013) [24B-44.1kHz]\01. Do I Wanna Know.flac"
-  @Column({ length: 500, comment: 'Đường dẫn tương đối trong storage' })
-  relativePath: string;
-
-  // Số thứ tự của bài hát trong Album (track_album)
-  @Column({ type: 'int', default: 1, comment: 'Số thứ tự bài hát trong album' })
-  trackNumber: number;
-
-  // -- Thông tin kỹ thuật âm thanh
-  // Thời lượng nhạc
-  @Column({
-    type: 'int',
-    nullable: true,
-    comment: 'Thời lượng tính bằng giây (second)',
-  })
-  duration: number;
-
-  // (kbps - kilobits per second)
-  @Column({ type: 'int', nullable: true, comment: 'Tốc độ bit (kbps)' })
-  bitrate: number;
-
-  // (Hz)
-  @Column({
-    type: 'int',
-    nullable: true,
-    comment: 'Tần số lấy mẫu (Hz)',
-    /** Áp dụng transformer để đảm bảo trả về kiểu number */
-    transformer: new ColumnNumericTransformer(),
-  })
-  sampleRate: number;
-
-  // (16-bit, 24-bit, 32-bit)
-  @Column({ type: 'smallint', nullable: true })
-  bitDepth: number;
-
-  // type (flac, mp3, wav)
-  @Column({ type: 'varchar', length: 10, default: 'flac' })
-  extension: string;
-
-  // Kích thước tệp file (byte)
-  @Column({
-    type: 'bigint',
-    nullable: true,
-    comment: 'Kích thước file tính bằng byte',
-    /** Áp dụng transformer để đảm bảo trả về kiểu number */
-    transformer: new ColumnNumericTransformer(),
-  })
-  fileSize: number;
-
-  // --- Benchmark Columns (Phục vụ đo kiểm/phân tích) ---
-
-  @Index()
-  @Column({
-    nullable: true,
-    length: 100,
-    comment: 'Từ khóa dùng cho benchmark',
-  })
-  keyword: string;
-
-  @Column({
-    type: 'int',
-    nullable: true,
-    comment: 'Thứ tự ưu tiên trong benchmark',
-  })
-  benchmarkOrder: number;
-
-  // -- Denormalization - Phi chuẩn hóa dữ liệu
-  @Index()
-  @Column({
-    length: 255,
-    nullable: true,
-    comment: 'Tên nghệ sĩ (phi chuẩn hóa)',
-  })
+  @ApiProperty({ example: 'Linkin Park', description: 'Tên nghệ sĩ' })
+  @Column({ name: 'artistName', nullable: true })
   artistName: string;
 
-  @Index()
-  @Column({
-    length: 255,
-    nullable: true,
-    comment: 'Tiêu đề album (phi chuẩn hóa)',
-  })
+  @ApiProperty({ example: 'Meteora', description: 'Tên Album' })
+  @Column({ name: 'albumTitle', nullable: true })
   albumTitle: string;
 
-  // --- Relations ---
+  @ApiProperty({ 
+    example: 'Linkin Park\\Meteora (2003)\\01. Numb.flac', 
+    description: 'Đường dẫn tương đối lưu file' 
+  })
+  @Column({ name: 'relativePath', nullable: true })
+  relativePath: string;
 
-  /**
-   * Bài hát thuộc về một Album.
-   * Nếu xóa Album, các Track liên quan sẽ bị xóa theo (CASCADE).
-   */
-  @ManyToOne(() => Album, (album) => album.tracks, { onDelete: 'CASCADE' })
+  @ApiProperty({ example: '01. Numb.flac', description: 'Tên file vật lý' })
+  @Column({ name: 'fileName', nullable: true })
+  fileName: string;
+
+  @ApiProperty({ example: 1, description: 'Số thứ tự bài trong Album' })
+  @Column({ type: 'int', default: 0 })
+  trackNumber: number;
+
+  @ApiProperty({ example: 187, description: 'Thời lượng bài hát (giây)' })
+  @Column({ type: 'int', default: 0 })
+  duration: number;
+
+  @ApiProperty({ example: 35000000, description: 'Dung lượng file (bytes)' })
+  @Column({ type: 'bigint', default: 0, transformer: new ColumnNumericTransformer() })
+  fileSize: number;
+
+  @ApiProperty({ example: 1411, description: 'Bitrate (kbps)' })
+  @Column({ type: 'int', default: 0 })
+  bitrate: number;
+
+  @ApiProperty({ example: 44100, description: 'Sample Rate (Hz)' })
+  @Column({ type: 'int', default: 0 })
+  sampleRate: number;
+
+  @ApiProperty({ example: 16, description: 'Độ sâu bit (16bit/24bit)' })
+  @Column({ type: 'int', default: 16 })
+  bitDepth: number;
+
+  @ApiProperty({ example: 'flac', description: 'Đuôi file' })
+  @Column({ length: 10, nullable: true })
+  extension: string;
+
+  @ApiProperty({ example: 'audio/flac', description: 'MIME Type' })
+  @Column({ nullable: true })
+  mimeType: string;
+
+  @ApiProperty({ example: false, description: 'Đánh dấu yêu thích' })
+  @Column({ default: false })
+  isFavorite: boolean;
+
+  @ApiProperty({ example: 10, description: 'Số lần phát' })
+  @Column({ default: 0 })
+  playCount: number;
+
+  @ApiProperty({ example: 100, description: 'Thứ tự insert (dùng cho Benchmark)' })
+  @Column({ type: 'int', default: 0 })
+  benchmarkOrder: number;
+  
+  // --- RELATIONS (Quan hệ bảng) ---
+
+  @ManyToOne(() => Album, (album) => album.tracks, { onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'albumId' })
   album: Album;
 
-  /**
-   * Quan hệ N-N với Thể loại.
-   * JoinTable sẽ tạo ra bảng trung gian 'track_genres'.
-   */
+  // 👇👇👇 ĐÂY LÀ PHẦN BỊ THIẾU CẦN THÊM VÀO 👇👇👇
   @ManyToMany(() => Genre, (genre) => genre.tracks)
   @JoinTable({
-    // Tên bảng trung gian được tạo ra trong DB
     name: 'track_genres',
     joinColumn: { name: 'track_id', referencedColumnName: 'id' },
     inverseJoinColumn: { name: 'genre_id', referencedColumnName: 'id' },
   })
   genres: Genre[];
+  // 👆👆👆 -------------------------------------- 👆👆👆
 }
