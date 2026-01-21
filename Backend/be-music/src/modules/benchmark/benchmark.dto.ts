@@ -1,7 +1,10 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Track } from '../../entities/track.entity';
 
-// 1. Định nghĩa cấu trúc Benchmark
+// ==========================================
+// A. CÁC DTO CHO SEARCH & BENCHMARK
+// ==========================================
+
 export class BenchmarkResultDto {
   @ApiProperty({ example: true, description: 'Trạng thái bật/tắt chế độ test' })
   is_active: boolean;
@@ -14,7 +17,7 @@ export class BenchmarkResultDto {
 
   @ApiProperty({
     example: '150.00 ms',
-    description: 'Thời gian chạy câu lệnh chậm (nếu bật)',
+    description: 'Thời gian chạy câu lệnh chậm (giả lập)',
   })
   slow_query_time: string;
 
@@ -34,7 +37,6 @@ export class BenchmarkResultDto {
   };
 }
 
-// 2. Định nghĩa Meta phân trang
 export class PaginationMetaDto {
   @ApiProperty({ example: 1000 })
   total: number;
@@ -49,7 +51,6 @@ export class PaginationMetaDto {
   limit: number;
 }
 
-// 3. Định nghĩa Response tổng (Wrapper)
 export class BenchmarkResponseDto {
   @ApiProperty({ type: [Track], description: 'Danh sách bài hát tìm được' })
   data: Track[];
@@ -62,4 +63,36 @@ export class BenchmarkResponseDto {
     description: 'Kết quả đo lường hiệu năng',
   })
   benchmark: BenchmarkResultDto;
+}
+
+// ==========================================
+// B. CÁC DTO CHO SEEDER (MỚI THÊM)
+// ==========================================
+
+export class SeederProgressDto {
+  @ApiProperty({ example: 45, description: 'Tiến độ phần trăm (0-100)' })
+  progress: number;
+
+  @ApiProperty({ example: true, description: 'Đang chạy hay không' })
+  isSeeding: boolean;
+
+  @ApiProperty({ example: 100000, description: 'Tổng số bản ghi cần tạo' })
+  total: number;
+
+  @ApiProperty({ example: 45000, description: 'Số bản ghi hiện tại' })
+  current: number;
+}
+
+export class DatabaseStatsDto {
+  @ApiProperty({ example: 1000000 })
+  totalTracks: number;
+
+  @ApiProperty({ example: 5000 })
+  totalArtists: number;
+
+  @ApiProperty({ example: 8000 })
+  totalAlbums: number;
+
+  @ApiProperty({ example: '2024-01-26T10:00:00Z' })
+  updatedAt: string;
 }
