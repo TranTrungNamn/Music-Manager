@@ -1,4 +1,75 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  IsBoolean,
+  IsEnum,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Min,
+} from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+
+export enum SearchFilter {
+  ALL = 'all',
+  TRACK = 'track',
+  ARTIST = 'artist',
+  ALBUM = 'album',
+}
+
+// ====================================================================
+// 1. SEARCH REQUEST DTO (Dùng để nhận tham số từ Swagger)
+// ====================================================================
+export class SearchQueryDto {
+  @ApiPropertyOptional({
+    description: 'Từ khóa tìm kiếm (để trống nếu muốn lấy tất cả)',
+    example: 'Love',
+  })
+  @IsOptional()
+  @IsString()
+  q?: string;
+
+  @ApiPropertyOptional({
+    enum: SearchFilter,
+    default: SearchFilter.ALL,
+    description: 'Trường muốn tìm kiếm',
+  })
+  @IsOptional()
+  @IsEnum(SearchFilter)
+  filter?: SearchFilter = SearchFilter.ALL;
+
+  @ApiPropertyOptional({ example: 1, description: 'Số trang' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  page?: number = 1;
+
+  @ApiPropertyOptional({
+    example: 20,
+    description: 'Số lượng kết quả trên mỗi trang',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  limit?: number = 20;
+
+  // 👇 ĐÂY LÀ PHẦN MỚI THÊM VÀO ĐỂ BẬT TẮT INDEX
+  @ApiPropertyOptional({
+    description:
+      'Bật (true) để BỎ QUA INDEX (chạy chậm). Tắt (false) để DÙNG INDEX (chạy nhanh).',
+    default: false,
+    type: Boolean,
+  })
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => value === 'true' || value === true) // Ép kiểu từ query param sang boolean
+  bypassIndex?: boolean = false;
+}
+
+// ====================================================================
+// 2. RESPONSE DTOs (Giữ nguyên như cũ)
+// ====================================================================
 
 export class SeederProgressDto {
   @ApiProperty({ example: 45, description: 'Percentage of completion' })
@@ -42,9 +113,6 @@ export class BenchmarkMetaDto {
   limit: number;
 }
 
-// ====================================================================
-// BENCHMARK RESULT DTO (Đã được tối ưu hóa cho Academic/Enterprise)
-// ====================================================================
 export class BenchmarkResultDto {
   @ApiProperty({
     example: 12.345,
@@ -68,9 +136,6 @@ export class BenchmarkResultDto {
   diff_factor: number;
 }
 
-// ====================================================================
-// MAIN RESPONSE DTO
-// ====================================================================
 export class BenchmarkResponseDto {
   @ApiProperty({ description: 'List of track results', isArray: true })
   data: any[];
