@@ -1,4 +1,3 @@
-// modules/seeder/seeder.service.ts
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
@@ -6,8 +5,8 @@ import { Track } from '../../entities/track.entity';
 import { Artist } from '../../entities/artist.entity';
 import { Album } from '../../entities/album.entity';
 import { faker } from '@faker-js/faker';
+import { SEEDER_VOCABULARY } from './constants/vocabulary.contants';
 
-// Define Interface to avoid "never" type error
 interface AlbumSeederData {
   title: string;
   releaseYear: number;
@@ -15,8 +14,8 @@ interface AlbumSeederData {
   sampleRate: number;
   coverPath: string;
   artist: { id: any };
-  folderName: string; // Temporary for track path generation
-  artistName: string; // Temporary for track path generation
+  folderName: string;
+  artistName: string;
 }
 
 @Injectable()
@@ -37,12 +36,30 @@ export class SeederService {
     private dataSource: DataSource,
   ) {}
 
-  getProgress() {
-    return this.seedingState;
+  /**
+   * Generates a guaranteed unique title based on the current index
+   * using Cartesian Product logic from the vocabulary constant.
+   */
+  private generateUniqueTitle(index: number): string {
+    const { adjectives, nouns, contexts } = SEEDER_VOCABULARY;
+
+    // Ensure we don't exceed the vocabulary bounds and maintain uniqueness
+    const adjIndex =
+      Math.floor(index / (nouns.length * contexts.length)) % adjectives.length;
+    const nounIndex = Math.floor(index / contexts.length) % nouns.length;
+    const ctxIndex = index % contexts.length;
+
+    const adj = adjectives[adjIndex] || 'Unique';
+    const noun = nouns[nounIndex] || 'Track';
+    const ctx = contexts[ctxIndex] || `no. ${index}`;
+
+    return `${adj} ${noun} ${ctx}`;
   }
 
   async seed(limit: number = 1000000) {
-    if (this.seedingState.isSeeding) return { message: 'Đang chạy rồi!' };
+    if (this.seedingState.isSeeding) {
+      return { message: 'Seeding process is already in progress.' };
+    }
 
     this.seedingState = {
       progress: 0,
@@ -50,142 +67,112 @@ export class SeederService {
       total: limit,
       current: 0,
     };
-
     const ARTISTS_PER_CHUNK = 100;
     let totalTracksCreated = 0;
 
     try {
-      this.logger.log(`Bắt đầu seeding ${limit} bài hát...`);
+      this.logger.log(`Starting database seeding: Target ${limit} tracks.`);
 
       while (totalTracksCreated < limit) {
         await this.dataSource.transaction(async (manager) => {
-          // Explicitly define type instead of default []
+          // 1. Generate Batch of Artists
           const artistsData: Partial<Artist>[] = [];
-
           for (let i = 0; i < ARTISTS_PER_CHUNK; i++) {
             artistsData.push({
-              name: faker.person.fullName(),
+              name: `${faker.person.fullName()} ${faker.string.alphanumeric(4)}`,
               picturePath: `artists/covers/${faker.string.uuid()}.jpg`,
             });
           }
-
-          // Lọc trùng trong BATCH hiện tại
-          const uniqueArtistsMap = new Map<string, Partial<Artist>>();
-          artistsData.forEach((artist) => {
-            uniqueArtistsMap.set(artist.name!, artist);
-          });
-          const filteredArtistsData = Array.from(uniqueArtistsMap.values());
 
           const savedArtists = await manager
             .createQueryBuilder()
             .insert()
             .into(Artist)
-            .values(filteredArtistsData)
-            // [SỬA 1] Update 'updatedAt' để ép Postgres trả về ID ngay cả khi bản ghi đã tồn tại
+            .values(artistsData)
             .onConflict('("name") DO UPDATE SET "updatedAt" = NOW()')
             .returning(['id', 'name'])
             .execute();
 
+          // 2. Generate Albums for saved Artists
           const albumsData: AlbumSeederData[] = [];
-          const artistMaps = savedArtists.generatedMaps;
+          for (const artistRef of savedArtists.generatedMaps) {
+            const albumTitle = `${faker.music.album()} ${faker.string.alphanumeric(3)}`;
+            const releaseYear = faker.number.int({ min: 1990, max: 2025 });
+            const bitDepth = faker.helpers.arrayElement([16, 24]) as 16 | 24;
+            const sampleRate = faker.helpers.arrayElement([44.1, 48.0, 96.0]);
 
-          for (const artistRef of artistMaps) {
-            const albumCount = faker.number.int({ min: 1, max: 2 });
-            for (let j = 0; j < albumCount; j++) {
-              const albumTitle = faker.music.album();
-              const releaseYear = faker.number.int({ min: 1990, max: 2024 });
-              const bitDepth = faker.helpers.arrayElement([16, 24]) as 16 | 24;
-              const sampleRate = faker.helpers.arrayElement([44.1, 48.0, 96.0]);
-              const folderName = `${artistRef.name} - ${albumTitle} (${releaseYear}) [${bitDepth}B-${sampleRate}kHz]`;
-
-              albumsData.push({
-                title: albumTitle,
-                releaseYear,
-                bitDepth,
-                sampleRate,
-                coverPath: `${artistRef.name}/${folderName}/cover.jpg`,
-                artist: { id: artistRef.id },
-                folderName: folderName,
-                artistName: artistRef.name,
-              });
-            }
+            albumsData.push({
+              title: albumTitle,
+              releaseYear,
+              bitDepth,
+              sampleRate,
+              coverPath: `covers/${faker.string.uuid()}.jpg`,
+              artist: { id: artistRef.id },
+              folderName: `${artistRef.name} - ${albumTitle}`,
+              artistName: artistRef.name,
+            });
           }
-
-          // Separate metadata before inserting into DB
-          const albumsToInsert = albumsData.map(
-            ({ folderName, artistName, ...rest }) => rest,
-          );
 
           const savedAlbums = await manager
             .createQueryBuilder()
             .insert()
             .into(Album)
-            .values(albumsToInsert)
+            .values(
+              albumsData.map(({ folderName, artistName, ...rest }) => rest),
+            )
             .returning(['id'])
             .execute();
 
+          // 3. Generate Tracks for saved Albums
           const tracksData: Partial<Track>[] = [];
-          const albumMaps = savedAlbums.generatedMaps;
-
-          for (let i = 0; i < albumMaps.length; i++) {
-            if (totalTracksCreated >= limit) break;
-
-            const albumId = albumMaps[i].id;
+          for (let i = 0; i < savedAlbums.generatedMaps.length; i++) {
+            const albumId = savedAlbums.generatedMaps[i].id;
             const meta = albumsData[i];
-            const tracksPerAlbum = faker.number.int({ min: 4, max: 5 });
+            const tracksPerAlbum = 10;
 
             for (let t = 1; t <= tracksPerAlbum; t++) {
               if (totalTracksCreated >= limit) break;
 
-              const songTitle = faker.music.songName();
+              const songTitle = this.generateUniqueTitle(totalTracksCreated);
               const fileName = `${t.toString().padStart(2, '0')}. ${songTitle}.flac`;
 
               tracksData.push({
                 title: songTitle,
-                fileName: fileName,
+                fileName,
                 artistName: meta.artistName,
                 albumTitle: meta.title,
-                // [SỬA 2] Dùng dấu / thay vì \\ để tương thích tốt hơn
                 relativePath: `${meta.artistName}/${meta.folderName}/${fileName}`,
                 trackNumber: t,
-                duration: faker.number.int({ min: 180, max: 450 }),
+                duration: faker.number.int({ min: 150, max: 400 }),
                 bitrate: meta.bitDepth === 24 ? 2116 : 1411,
                 sampleRate: Math.round(meta.sampleRate * 1000),
                 bitDepth: meta.bitDepth,
                 extension: 'flac',
-                fileSize: faker.number.int({ min: 20000000, max: 50000000 }),
+                fileSize: faker.number.int({ min: 15000000, max: 60000000 }),
                 album: { id: albumId } as any,
                 benchmarkOrder: totalTracksCreated,
-                // [SỬA 3] Đã XÓA dòng 'keyword' ở đây để tránh lỗi DB
               });
-
               totalTracksCreated++;
             }
           }
 
+          // 4. Final Batch Insert for Tracks
           if (tracksData.length > 0) {
-            await manager
-              .createQueryBuilder()
-              .insert()
-              .into(Track)
-              .values(tracksData)
-              .execute();
+            await manager.insert(Track, tracksData);
           }
 
           this.updateProgress(totalTracksCreated, limit);
         });
-
-        await new Promise((resolve) => setImmediate(resolve));
       }
-    } catch (e) {
-      // TRANSLATED: "Lỗi khi seeding" -> "Error during seeding"
-      this.logger.error('Error during seeding: ' + e.message);
-      console.error(e);
+    } catch (error) {
+      this.logger.error(`Seeding interrupted: ${error.message}`);
     } finally {
       this.seedingState.isSeeding = false;
-      // TRANSLATED: "Hoàn tất! Đã tạo..." -> "Completed! Created..."
-      this.logger.log(`✅ Completed! Created ${totalTracksCreated} tracks.`);
+      this.logger.log(
+        `Seeding process finished. Total tracks created: ${totalTracksCreated}`,
+      );
     }
+
     return { count: totalTracksCreated };
   }
 
@@ -196,31 +183,14 @@ export class SeederService {
       100,
     );
 
-    if (current % 5000 === 0 || current >= total) {
-      // TRANSLATED: "Tiến độ" -> "Progress"
+    if (current % 5000 === 0 || current === total) {
       this.logger.log(
-        `⏳ Progress: ${this.seedingState.progress}% (${current}/${total})`,
+        `Seeding Progress: ${this.seedingState.progress}% (${current}/${total})`,
       );
     }
   }
 
-  async getDatabaseStats() {
-    try {
-      const [trackCount, artistCount, albumCount] = await Promise.all([
-        this.trackRepo.count(),
-        this.artistRepo.count(),
-        this.albumRepo.count(),
-      ]);
-
-      return {
-        totalTracks: trackCount,
-        totalArtists: artistCount,
-        totalAlbums: albumCount,
-        updatedAt: new Date().toISOString(),
-      };
-    } catch (error) {
-      this.logger.error('Lỗi khi lấy thống kê database: ' + error.message);
-      throw error;
-    }
+  getProgress() {
+    return this.seedingState;
   }
 }
