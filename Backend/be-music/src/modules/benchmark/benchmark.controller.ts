@@ -20,19 +20,19 @@ export class BenchmarkController {
   ) {}
 
   // ======================================================
-  // 1. SEEDER ENDPOINTS
+  // 1. DATA SEEDING ENDPOINTS
   // ======================================================
 
   @Post('seed')
   @ApiOperation({
-    summary: '🚀 Chạy Seeder (Tạo dữ liệu giả)',
-    description: 'Chạy tiến trình tạo dữ liệu mẫu lớn để test hiệu năng.',
+    summary: 'Execute Data Seeder',
+    description: 'Generates large-scale mock data for performance testing.',
   })
   @ApiQuery({
     name: 'limit',
     required: false,
-    example: 100000,
-    description: 'Số lượng bài hát cần tạo (Mặc định: 1,000,000)',
+    example: 1000000,
+    description: 'Number of track records to generate (Default: 1,000,000)',
   })
   async runSeeder(@Query('limit') limit: number = 1000000) {
     return this.seederService.seed(Number(limit));
@@ -40,8 +40,9 @@ export class BenchmarkController {
 
   @Get('seed/progress')
   @ApiOperation({
-    summary: '⏳ Xem tiến độ Seeder',
-    description: 'Kiểm tra xem quá trình tạo dữ liệu đã chạy đến đâu.',
+    summary: 'Get Seeder Progress',
+    description:
+      'Retrieves the current progress of the data generation process.',
   })
   @ApiResponse({
     status: 200,
@@ -53,8 +54,9 @@ export class BenchmarkController {
 
   @Get('stats')
   @ApiOperation({
-    summary: '📊 Thống kê Database',
-    description: 'Xem tổng số lượng Track/Artist/Album hiện có trong DB.',
+    summary: 'Database Statistics',
+    description:
+      'Retrieves total counts of Tracks, Artists, and Albums in the database. Used to verify the dataset size before benchmarking.',
   })
   @ApiResponse({
     status: 200,
@@ -65,31 +67,32 @@ export class BenchmarkController {
   }
 
   // ======================================================
-  // 2. SEARCH & BENCHMARK API (Always On)
+  // 2. SEARCH & BENCHMARK API
   // ======================================================
 
   @Get('search')
   @ApiOperation({
-    summary: '🔍 Tìm kiếm & So sánh hiệu năng (Always On)',
+    summary: 'Search & Performance Comparison (EXPLAIN ANALYZE)',
     description:
-      'API tìm kiếm bài hát. Hệ thống sẽ **tự động** chạy 2 câu truy vấn (Nhanh & Chậm) để so sánh hiệu năng mà không cần tham số kích hoạt.',
+      'Search API that automatically executes two queries (Optimized Index Scan vs Full Table Scan) to compare database execution time.',
   })
   @ApiResponse({
     status: 200,
-    description: 'Kết quả tìm kiếm kèm báo cáo benchmark',
+    description: 'Search results alongside database benchmark report',
     type: BenchmarkResponseDto,
   })
   @ApiQuery({
     name: 'q',
     required: true,
-    description: 'Từ khóa tìm kiếm (bắt buộc để kích hoạt Slow Query)',
+    description:
+      'Search keyword (required to trigger the unoptimized slow query)',
     example: 'Love',
   })
   @ApiQuery({
     name: 'filter',
     required: false,
-    enum: ['all', 'track', 'artist', 'album'], // [SỬA] Đổi 'title' thành 'track'
-    description: 'Trường dữ liệu cần tìm',
+    enum: ['all', 'track', 'artist', 'album'],
+    description: 'Field to apply search criteria',
     example: 'all',
   })
   @ApiQuery({ name: 'page', required: false, example: 1 })
@@ -104,8 +107,7 @@ export class BenchmarkController {
     const l = Number(limit) || 20;
     const p = Number(page) || 1;
 
-    // --- 1. FAST QUERY (QueryBuilder + Index) ---
-    const startFast = performance.now();
+    // --- STEP 1: FETCH ACTUAL DATA ---
     const queryBuilder = this.trackRepo
       .createQueryBuilder('track')
       .select([
@@ -118,7 +120,6 @@ export class BenchmarkController {
 
     if (keyword) {
       const kw = `%${keyword}%`;
-      // [SỬA LOGIC] Check filter === 'track' thay vì 'title'
       if (filter === 'track') {
         queryBuilder.where('track.title ILIKE :kw', { kw });
       } else if (filter === 'artist') {
@@ -126,7 +127,6 @@ export class BenchmarkController {
       } else if (filter === 'album') {
         queryBuilder.where('track.albumTitle ILIKE :kw', { kw });
       } else {
-        // filter === 'all' hoặc mặc định
         queryBuilder.where(
           '(track.title ILIKE :kw OR track.albumTitle ILIKE :kw OR track.artistName ILIKE :kw)',
           { kw },
@@ -140,26 +140,42 @@ export class BenchmarkController {
       .take(l)
       .getManyAndCount();
 
-    const endFast = performance.now();
-    const fastTime = endFast - startFast;
+    // --- STEP 2: MEASURE FAST QUERY (DB-Side Execution Time) ---
+    let dbFastTime = 0;
+    try {
+      const [fastSql, fastParams] = queryBuilder.getQueryAndParameters();
+      const fastExplain = await this.trackRepo.query(
+        `EXPLAIN (ANALYZE, FORMAT JSON) ${fastSql}`,
+        fastParams,
+      );
+      dbFastTime = fastExplain[0]['QUERY PLAN'][0]['Execution Time'];
+    } catch (e) {
+      console.error('Fast Query Explain Error:', e);
+    }
 
-    // --- 2. SLOW QUERY (Raw SQL + Full Scan) ---
-    let slowTime = 0;
+    // --- STEP 3: MEASURE SLOW QUERY (Unoptimized Full Scan) ---
+    let dbSlowTime = 0;
     let slowExplanation = 'N/A (No keyword provided)';
 
     if (keyword) {
-      const startSlow = performance.now();
-      // Câu lệnh Raw SQL cố tình không tối ưu (để so sánh)
-      await this.trackRepo.query(
-        `SELECT COUNT(*) FROM tracks 
-         WHERE lower(title) LIKE $1 
-         OR lower("artistName") LIKE $1 
-         OR lower("albumTitle") LIKE $1`,
-        [`%${keyword.toLowerCase()}%`],
-      );
-      const endSlow = performance.now();
-      slowTime = endSlow - startSlow;
-      slowExplanation = 'Full Table Scan (Raw SQL, No Index Usage)';
+      try {
+        const slowKw = `%${keyword.toLowerCase()}%`;
+        const slowSql = `
+          SELECT COUNT(*) FROM tracks 
+          WHERE lower(title) LIKE $1 
+          OR lower("artistName") LIKE $1 
+          OR lower("albumTitle") LIKE $1
+        `;
+
+        const slowExplain = await this.trackRepo.query(
+          `EXPLAIN (ANALYZE, FORMAT JSON) ${slowSql}`,
+          [slowKw],
+        );
+        dbSlowTime = slowExplain[0]['QUERY PLAN'][0]['Execution Time'];
+        slowExplanation = 'Full Table Scan (Raw SQL EXPLAIN ANALYZE)';
+      } catch (e) {
+        console.error('Slow Query Explain Error:', e);
+      }
     }
 
     return {
@@ -171,14 +187,14 @@ export class BenchmarkController {
         limit: l,
       },
       benchmark: {
-        is_active: true,
-        fast_query_time: `${fastTime.toFixed(2)} ms`,
-        slow_query_time: slowTime > 0 ? `${slowTime.toFixed(2)} ms` : 'N/A',
-        diff_factor: slowTime > 0 ? (slowTime / fastTime).toFixed(1) : '0',
-        explanation: {
-          fast: 'ORM Query Builder (Optimized)',
-          slow: slowExplanation,
-        },
+        // Trả về số liệu thuần
+        fast_query_time_ms: dbFastTime,
+
+        // Trả về số liệu gốc của slow query (nếu có)
+        slow_query_time_ms: dbSlowTime > 0 ? dbSlowTime : null,
+
+        // Hệ số chênh lệch thuần túy
+        diff_factor: dbSlowTime > 0 ? dbSlowTime / dbFastTime : 0,
       },
     };
   }

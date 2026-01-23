@@ -1,98 +1,86 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Track } from '../../entities/track.entity';
-
-// ==========================================
-// A. CÁC DTO CHO SEARCH & BENCHMARK
-// ==========================================
-
-export class BenchmarkResultDto {
-  @ApiProperty({ example: true, description: 'Trạng thái bật/tắt chế độ test' })
-  is_active: boolean;
-
-  @ApiProperty({
-    example: '1.20 ms',
-    description: 'Thời gian chạy câu lệnh tối ưu',
-  })
-  fast_query_time: string;
-
-  @ApiProperty({
-    example: '150.00 ms',
-    description: 'Thời gian chạy câu lệnh chậm (giả lập)',
-  })
-  slow_query_time: string;
-
-  @ApiProperty({
-    example: '125.0',
-    description: 'Hệ số chênh lệch (Slow / Fast)',
-  })
-  diff_factor: string;
-
-  @ApiProperty({
-    example: { fast: 'ORM Query Builder', slow: 'Full Table Scan' },
-    description: 'Giải thích kỹ thuật',
-  })
-  explanation: {
-    fast: string;
-    slow: string;
-  };
-}
-
-export class PaginationMetaDto {
-  @ApiProperty({ example: 1000 })
-  total: number;
-
-  @ApiProperty({ example: 1 })
-  page: number;
-
-  @ApiProperty({ example: 50 })
-  lastPage: number;
-
-  @ApiProperty({ example: 20 })
-  limit: number;
-}
-
-export class BenchmarkResponseDto {
-  @ApiProperty({ type: [Track], description: 'Danh sách bài hát tìm được' })
-  data: Track[];
-
-  @ApiProperty({ type: PaginationMetaDto, description: 'Thông tin phân trang' })
-  meta: PaginationMetaDto;
-
-  @ApiProperty({
-    type: BenchmarkResultDto,
-    description: 'Kết quả đo lường hiệu năng',
-  })
-  benchmark: BenchmarkResultDto;
-}
-
-// ==========================================
-// B. CÁC DTO CHO SEEDER (MỚI THÊM)
-// ==========================================
 
 export class SeederProgressDto {
-  @ApiProperty({ example: 45, description: 'Tiến độ phần trăm (0-100)' })
+  @ApiProperty({ example: 45, description: 'Percentage of completion' })
   progress: number;
 
-  @ApiProperty({ example: true, description: 'Đang chạy hay không' })
+  @ApiProperty({ example: true, description: 'Is seeder currently running?' })
   isSeeding: boolean;
 
-  @ApiProperty({ example: 100000, description: 'Tổng số bản ghi cần tạo' })
-  total: number;
-
-  @ApiProperty({ example: 45000, description: 'Số bản ghi hiện tại' })
+  @ApiProperty({
+    example: 450000,
+    description: 'Current count of records seeded',
+  })
   current: number;
+
+  @ApiProperty({ example: 1000000, description: 'Total records to seed' })
+  total: number;
 }
 
 export class DatabaseStatsDto {
-  @ApiProperty({ example: 1000000 })
-  totalTracks: number;
+  @ApiProperty({ example: 1000000, description: 'Total tracks in DB' })
+  tracks: number;
 
-  @ApiProperty({ example: 5000 })
-  totalArtists: number;
+  @ApiProperty({ example: 50000, description: 'Total albums in DB' })
+  albums: number;
 
-  @ApiProperty({ example: 8000 })
-  totalAlbums: number;
+  @ApiProperty({ example: 10000, description: 'Total artists in DB' })
+  artists: number;
+}
 
-  @ApiProperty({ example: '2024-01-26T10:00:00Z' })
-  updatedAt: string;
+export class BenchmarkMetaDto {
+  @ApiProperty({ example: 1000000, description: 'Total records found' })
+  total: number;
+
+  @ApiProperty({ example: 1, description: 'Current page' })
+  page: number;
+
+  @ApiProperty({ example: 50000, description: 'Last page number' })
+  lastPage: number;
+
+  @ApiProperty({ example: 20, description: 'Items per page' })
+  limit: number;
+}
+
+// ====================================================================
+// BENCHMARK RESULT DTO (Đã được tối ưu hóa cho Academic/Enterprise)
+// ====================================================================
+export class BenchmarkResultDto {
+  @ApiProperty({
+    example: 12.345,
+    description:
+      'Execution time of the optimized query in milliseconds (Database Execution Time)',
+  })
+  fast_query_time_ms: number;
+
+  @ApiProperty({
+    example: 450.123,
+    description:
+      'Execution time of the slow query in milliseconds (null if no keyword provided)',
+    nullable: true,
+  })
+  slow_query_time_ms: number | null;
+
+  @ApiProperty({
+    example: 36.5,
+    description: 'Performance difference factor (Slow / Fast)',
+  })
+  diff_factor: number;
+}
+
+// ====================================================================
+// MAIN RESPONSE DTO
+// ====================================================================
+export class BenchmarkResponseDto {
+  @ApiProperty({ description: 'List of track results', isArray: true })
+  data: any[];
+
+  @ApiProperty({ type: BenchmarkMetaDto, description: 'Pagination metadata' })
+  meta: BenchmarkMetaDto;
+
+  @ApiProperty({
+    type: BenchmarkResultDto,
+    description: 'Benchmark performance result',
+  })
+  benchmark: BenchmarkResultDto;
 }

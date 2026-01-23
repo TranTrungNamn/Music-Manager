@@ -37,6 +37,7 @@ import { SeederModule } from './modules/seeder/seeder.module';
         // Liệt kê trực tiếp Class thay vì dùng chuỗi để tránh lỗi Syntax khi quét file .js.map
         entities: [Artist, Album, Track, Genre],
         synchronize: true,
+        timezone: '+07:00',
         logging: false, // Tắt logging để tăng hiệu suất khi xử lý 1 triệu dòng
       }),
     }),

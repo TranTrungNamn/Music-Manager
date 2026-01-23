@@ -2,22 +2,26 @@ import {
   Entity,
   Column,
   ManyToOne,
-  ManyToMany, // <--- Nhớ import cái này
-  JoinTable,  // <--- Nhớ import cái này
+  ManyToMany,
+  JoinTable,
   JoinColumn,
   Index,
 } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
 import { Album } from './album.entity';
 import { BaseEntity } from './base.entity';
-import { Genre } from './genre.entity'; // <--- Nhớ import cái này
+import { Genre } from './genre.entity';
 import { ColumnNumericTransformer } from '../common/transformers/column-numeric.transformer';
 
 @Entity('tracks')
-@Index(['title', 'artistName', 'albumTitle']) 
+/**
+ * Composite Index để tối ưu tìm kiếm theo tiêu chí:
+ * - title + artistName + albumTitle
+ *
+ * B-tree Index giúp tăng tốc độ truy vấn với các phép so sánh lớn hơn/nhỏ hơn
+ */
+@Index(['title', 'artistName', 'albumTitle'])
 export class Track extends BaseEntity {
-  // [LƯU Ý] Đã xóa khai báo id để thừa kế từ BaseEntity
-
   @ApiProperty({ example: 'Numb', description: 'Tên bài hát' })
   @Column()
   title: string;
@@ -30,9 +34,9 @@ export class Track extends BaseEntity {
   @Column({ name: 'albumTitle', nullable: true })
   albumTitle: string;
 
-  @ApiProperty({ 
-    example: 'Linkin Park\\Meteora (2003)\\01. Numb.flac', 
-    description: 'Đường dẫn tương đối lưu file' 
+  @ApiProperty({
+    example: 'Linkin Park\\Meteora (2003)\\01. Numb.flac',
+    description: 'Đường dẫn tương đối lưu file',
   })
   @Column({ name: 'relativePath', nullable: true })
   relativePath: string;
@@ -50,7 +54,11 @@ export class Track extends BaseEntity {
   duration: number;
 
   @ApiProperty({ example: 35000000, description: 'Dung lượng file (bytes)' })
-  @Column({ type: 'bigint', default: 0, transformer: new ColumnNumericTransformer() })
+  @Column({
+    type: 'bigint',
+    default: 0,
+    transformer: new ColumnNumericTransformer(),
+  })
   fileSize: number;
 
   @ApiProperty({ example: 1411, description: 'Bitrate (kbps)' })
@@ -81,17 +89,19 @@ export class Track extends BaseEntity {
   @Column({ default: 0 })
   playCount: number;
 
-  @ApiProperty({ example: 100, description: 'Thứ tự insert (dùng cho Benchmark)' })
+  @ApiProperty({
+    example: 100,
+    description: 'Thứ tự insert (dùng cho Benchmark) B-Tree Index',
+  })
   @Column({ type: 'int', default: 0 })
   benchmarkOrder: number;
-  
+
   // --- RELATIONS (Quan hệ bảng) ---
 
   @ManyToOne(() => Album, (album) => album.tracks, { onDelete: 'SET NULL' })
   @JoinColumn({ name: 'albumId' })
   album: Album;
 
-  // 👇👇👇 ĐÂY LÀ PHẦN BỊ THIẾU CẦN THÊM VÀO 👇👇👇
   @ManyToMany(() => Genre, (genre) => genre.tracks)
   @JoinTable({
     name: 'track_genres',
@@ -99,5 +109,4 @@ export class Track extends BaseEntity {
     inverseJoinColumn: { name: 'genre_id', referencedColumnName: 'id' },
   })
   genres: Genre[];
-  // 👆👆👆 -------------------------------------- 👆👆👆
 }

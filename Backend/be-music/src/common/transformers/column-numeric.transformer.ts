@@ -1,6 +1,9 @@
 /**
  * Transformer giúp chuyển đổi kiểu dữ liệu giữa Database và Code.
  * Giúp giải quyết vấn đề BigInt bị trả về dạng string trong Node.js.
+ *
+ * Giữ được sự đồng nhất về kiểu dữ liệu number trong code,
+ * giúp tính toán chính xác và tránh các lỗi logic --> do cộng một con số với một chuỗi ký tự.
  */
 export class ColumnNumericTransformer {
   /**
