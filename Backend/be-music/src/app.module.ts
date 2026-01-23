@@ -1,6 +1,7 @@
-import { Module } from '@nestjs/common';
+import { Module, OnApplicationBootstrap, Logger } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { DataSource } from 'typeorm';
 
 // 1. Import Entities
 import { Artist } from './entities/artist.entity';
@@ -34,11 +35,11 @@ import { SeederModule } from './modules/seeder/seeder.module';
         username: config.get<string>('DB_USERNAME', 'postgres'),
         password: config.get<string>('DB_PASSWORD', 'postgres'),
         database: config.get<string>('DB_DATABASE', 'be_music'),
-        // Liệt kê trực tiếp Class thay vì dùng chuỗi để tránh lỗi Syntax khi quét file .js.map
+        // Liệt kê trực tiếp Class thay vì dùng chuỗi để tránh lỗi Syntax
         entities: [Artist, Album, Track, Genre],
         synchronize: true,
         timezone: '+07:00',
-        logging: false, // Tắt logging để tăng hiệu suất khi xử lý 1 triệu dòng
+        logging: false, // Tắt logging để tăng hiệu suất khi xử lý dữ liệu lớn
       }),
     }),
 
@@ -49,4 +50,38 @@ import { SeederModule } from './modules/seeder/seeder.module';
   controllers: [AppController, MusicController],
   providers: [FileManagerService],
 })
-export class AppModule {}
+export class AppModule implements OnApplicationBootstrap {
+  private readonly logger = new Logger(AppModule.name);
+
+  // Inject DataSource để có thể chạy raw SQL Query
+  constructor(private dataSource: DataSource) {}
+
+  // Hàm lifecycle tự động chạy sau khi ứng dụng kết nối DB thành công
+  async onApplicationBootstrap() {
+    this.logger.log('Đang kiểm tra và khởi tạo GIN Index cho Database...');
+
+    try {
+      // 1. Bật Extension pg_trgm hỗ trợ tìm kiếm text
+      await this.dataSource.query(`CREATE EXTENSION IF NOT EXISTS pg_trgm;`);
+
+      // 2. Tạo GIN Index cho cột title (Tối ưu tìm kiếm bài hát)
+      await this.dataSource.query(`
+        CREATE INDEX IF NOT EXISTS idx_track_title_gin ON track USING GIN (title gin_trgm_ops);
+      `);
+      
+      // 3. Tạo GIN Index cho cột artistName (Tối ưu tìm kiếm ca sĩ)
+      await this.dataSource.query(`
+        CREATE INDEX IF NOT EXISTS idx_track_artist_gin ON track USING GIN ("artistName" gin_trgm_ops);
+      `);
+
+      // 4. Tạo GIN Index cho cột albumTitle (Tối ưu tìm kiếm album)
+      await this.dataSource.query(`
+        CREATE INDEX IF NOT EXISTS idx_track_album_gin ON track USING GIN ("albumTitle" gin_trgm_ops);
+      `);
+
+      this.logger.log('✅ Đã thiết lập xong GIN Index siêu tốc cho bảng Track!');
+    } catch (error) {
+      this.logger.error('Lỗi khi tạo GIN Index:', error.message);
+    }
+  }
+}
