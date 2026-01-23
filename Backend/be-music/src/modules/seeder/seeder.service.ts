@@ -190,6 +190,28 @@ export class SeederService {
     }
   }
 
+  async getDatabaseStats() {
+    try {
+      const [trackCount, artistCount, albumCount] = await Promise.all([
+        this.trackRepo.count(),
+        this.artistRepo.count(),
+        this.albumRepo.count(),
+      ]);
+
+      return {
+        totalTracks: trackCount,
+        totalArtists: artistCount,
+        totalAlbums: albumCount,
+        updatedAt: new Date().toISOString(),
+      };
+    } catch (error) {
+      this.logger.error(
+        `Failed to fetch database statistics: ${error.message}`,
+      );
+      throw error;
+    }
+  }
+
   getProgress() {
     return this.seedingState;
   }
